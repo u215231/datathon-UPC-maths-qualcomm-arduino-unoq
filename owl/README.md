@@ -24,7 +24,7 @@ It takes about 3 minutes and needs no sudo. You should see four steps, ending wi
 ## Use
 
 - Plug the board in. The eyes wake up; when the page is ready, open `http://<board-ip>:8000` from a laptop or phone on the same network.
-- Over USB instead: `adb forward tcp:8000 tcp:8000`, then <http://127.0.0.1:8000>.
+- Over USB instead: run `bash owl/usb.sh` on the laptop and leave it running (it keeps the ports forwarded, also after the board is replugged), then open <http://127.0.0.1:8000>.
 - **Teach:** pick a level and a language, answer, and climb the hint ladder when you're stuck.
 - **Reason:** type or pick a problem and watch Uino write its program. To drop a *picture* of a problem, run the page from a laptop, which reads the picture (see below).
 - **Stats:** what we measured.
