@@ -1,6 +1,6 @@
-# The maths model (Reason)
+# The program-writing model (Reason)
 
-`REASON_STRATEGY=math` answers with **Qwen2.5-Math-1.5B-Instruct, fine-tuned by us to write short Python programs**.
+`REASON_STRATEGY=math` answers with a small model fine-tuned by us to write short Python programs. The shipped one is **Qwen2.5-Coder-1.5B** (last section; how to train it: [distil/README.md](distil/README.md)). We got there through Qwen2.5-Math-1.5B, described first.
 
 Why: untuned, the maths model writes good programs but long ones (about 350 tokens with its explanations), and the board writes 3 tokens a second. Trained on short programs, it writes about 44 tokens.
 

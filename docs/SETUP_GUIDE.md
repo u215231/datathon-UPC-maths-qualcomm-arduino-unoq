@@ -2,42 +2,7 @@
 
 <img width="1526" height="927" alt="UPC-datathon" src="https://github.com/user-attachments/assets/daa7be34-b91a-4703-9581-7b5142f75d91" />
 
-## Node.js web application
-
-The Node.js web client in [`web/`](C:/Users/34615/Desktop/datathon-fme-2026/qualcomm/web)
-is a small single-page app with three routes: home, agent and analytics. The
-shell (`index.html`, [`layout.css`](C:/Users/34615/Desktop/datathon-fme-2026/qualcomm/web/public/layout.css),
-[`layout.js`](C:/Users/34615/Desktop/datathon-fme-2026/qualcomm/web/public/layout.js)
-and [`router.js`](C:/Users/34615/Desktop/datathon-fme-2026/qualcomm/web/public/router.js))
-is loaded once: the project title sits on top, the Home, Agent and Analytics
-buttons are centred below it, and every route renders inside the same
-`--shell`-wide body. The router intercepts internal links and only fetches the
-middle fragment from `pages/` (HTML, CSS and JS per view), so navigating
-between sections never reloads the header or the footer; browser history and
-deep links keep working. The sticky footer holds the *About us* block (team
-name and participants) and the UPF, UPC, Qualcomm, FME and TIC's Friends
-logos; the Qualcomm wordmark is served locally from `qualcomm-logo.svg` with
-`qualcomm-logo.png` as a fallback. The palette combines white with the teal
-`#42a9af`.
-
-The agent page is the explorer workflow: problem list, language/level filters,
-answer buttons, score tracking, model prompt inspection and keyboard shortcuts.
-It reads `data/val.jsonl` automatically when available, falls back to
-`data/train.jsonl`, and finally uses
-[`data/sample_problems.jsonl`](C:/Users/34615/Desktop/datathon-fme-2026/qualcomm/data/sample_problems.jsonl).
-It works without a backend or model server. The local model fallback answers
-`D`, matching the current Python fallback.
-
-From the repository root, run:
-
-```powershell
-cd web
-npm start
-```
-
-Open <http://127.0.0.1:3000>. The pages are `/` (`/home` also works), `/agent`
-(`/uploader` is kept as an alias) and `/analytics`. `PORT` can be used to change
-the Node.js port.
+> This is the organisers' guide, kept for the board setup (steps 0-12). The project's own README is [../README.md](../README.md).
 
 ## Math on the Edge: Build a Math Copilot with Arduino and M3Kang
 
