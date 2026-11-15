@@ -6,7 +6,7 @@ const T = {
     title: "How often is Uino right?",
     lead: "Right answers out of {r} practice problems. Guessing gets {c}%.",
     k_ours: "Uino", k_other: "Other things we tried", k_chance: "Guessing",
-    chance: "guessing {c}%", board: "in Uino", laptop: "on a laptop",
+    chance: "guessing {c}%", board: "on the board, 60 s limit", laptop: "on a laptop, no time limit",
     t_mean: "to answer, on average", t_mean_s: "the limit is {l} s",
     t_max: "for the slowest problem", t_max_s: "none went over the limit",
     t_prog: "of Uino's programs were right", t_prog_s: "it writes a small program for each problem",
@@ -16,7 +16,7 @@ const T = {
     title: "Quantes vegades l'encerta Uino?",
     lead: "Respostes correctes de {r} problemes de pràctica. A l'atzar s'encerta el {c}%.",
     k_ours: "Uino", k_other: "Altres coses que hem provat", k_chance: "A l'atzar",
-    chance: "a l'atzar {c}%", board: "dins d'Uino", laptop: "en un portàtil",
+    chance: "a l'atzar {c}%", board: "a la placa, límit de 60 s", laptop: "en un portàtil, sense límit de temps",
     t_mean: "per respondre, de mitjana", t_mean_s: "el límit és {l} s",
     t_max: "per al problema més lent", t_max_s: "cap ha passat del límit",
     t_prog: "dels programes d'Uino eren correctes", t_prog_s: "escriu un petit programa per a cada problema",
@@ -34,8 +34,8 @@ export function mount(root) {
     const en = App.lang === "eng", t = T[App.lang];
     const bars = [...data.bars].sort((a, b) => a.accuracy - b.accuracy);
     const narrow = root.clientWidth < 640;
-    const W = narrow ? 420 : 920, labelW = narrow ? 0 : 330, row = narrow ? 62 : 46, top = 30;
-    const x0 = labelW + 4, plotW = W - x0 - 56, max = 40;
+    const W = narrow ? 420 : 1000, labelW = narrow ? 0 : 270, row = narrow ? 62 : 46, top = 30;
+    const x0 = labelW + 4, plotW = W - x0 - (narrow ? 56 : 250), max = 50;
     const x = (v) => x0 + (v / max) * plotW;
     const H = top + bars.length * row + 26;
     const chance = data.set.chance;
