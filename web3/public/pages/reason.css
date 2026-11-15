@@ -3,20 +3,20 @@
 
 .drop {
   display: flex; align-items: center; gap: 16px; margin: 14px 0; padding: 18px;
-  border: 3px dashed var(--accent); border-radius: 18px; background: var(--accent-soft);
+  border: 3px dashed var(--accent); background: var(--accent-soft);
   cursor: pointer; transition: background .15s, transform .15s;
 }
-.drop:hover, .drop.over { background: #cfecee; transform: scale(1.01); }
+.drop:hover, .drop.over { background: var(--sun-soft); }
 .drop svg { width: 72px; flex: 0 0 auto; fill: none; stroke: var(--accent-strong); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
 .drop svg circle { fill: var(--sun); stroke: none; }
 .drop b { display: block; font-size: 18px; color: var(--accent-ink); }
-.shot { display: block; max-width: 100%; max-height: 320px; margin: 0 auto 12px; border-radius: 12px; border: 2px solid var(--line); background: #fff; }
+.shot { display: block; max-width: 100%; max-height: 320px; margin: 0 auto 12px; border-radius: 12px; border: 2px solid var(--line); background: var(--field); }
 .notice { margin: 0 0 12px; padding: 10px 14px; border-radius: 12px; background: var(--sun-soft); color: var(--sun-ink); font-weight: 600; }
 
 .field { display: block; margin: 12px 0; }
 .field span, .practice label { display: block; margin-bottom: 6px; font-weight: 700; }
 textarea, .opts input, .practice select {
-  width: 100%; padding: 12px 14px; border: 2px solid var(--line); border-radius: 14px; background: #fff; font-size: 16px;
+  width: 100%; padding: 12px 14px; border: 2px solid var(--line); background: var(--field); font-size: 16px;
 }
 textarea { resize: vertical; line-height: 1.45; }
 textarea:focus, .opts input:focus, .practice select:focus { border-color: var(--accent); outline: none; }
@@ -52,7 +52,7 @@ button.link { border: 0; background: none; color: var(--accent-ink); font-weight
 .answer-row { display: flex; align-items: center; gap: 18px; }
 .letter {
   display: grid; place-items: center; width: 96px; height: 96px; flex: 0 0 auto; border-radius: 26px;
-  background: var(--sun); color: var(--ink); font-size: 60px; font-weight: 800; box-shadow: 0 6px 0 #e59a2b;
+  background: var(--sun); color: var(--ink); font-size: 60px; font-weight: 800; box-shadow: 0 6px 0 var(--accent);
   animation: stamp .5s cubic-bezier(.3, 1.6, .5, 1);
 }
 @keyframes stamp { from { transform: scale(.3) rotate(-18deg); opacity: 0; } }
@@ -66,12 +66,12 @@ button.link { border: 0; background: none; color: var(--accent-ink); font-weight
 .result p.note { color: var(--muted); margin-top: 14px; }
 .probs { display: grid; gap: 6px; margin: 10px 0; }
 .prob { display: grid; grid-template-columns: 26px 1fr 52px; align-items: center; gap: 8px; font-weight: 700; }
-.prob i { display: block; height: 16px; border-radius: 8px; background: #bfe3e5; min-width: 3px; }
+.prob i { display: block; height: 16px; background: var(--line); min-width: 3px; }
 .prob.top i { background: var(--accent-strong); }
 .prob span { text-align: right; font-variant-numeric: tabular-nums; font-size: 14px; color: var(--muted); }
 details { margin-top: 10px; border: 2px solid var(--line); border-radius: 14px; overflow: hidden; }
-summary { padding: 10px 14px; font-weight: 700; cursor: pointer; background: #fff; min-height: 44px; }
-pre { margin: 0; padding: 14px; overflow-x: auto; background: var(--night); color: #e9f6f6; font: 13.5px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+summary { padding: 10px 14px; font-weight: 700; cursor: pointer; background: var(--field); min-height: 44px; }
+pre { margin: 0; padding: 14px; overflow-x: auto; background: var(--night); color: var(--sun-soft); font: 13.5px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
 
 @media (max-width: 900px) {
   .reason-layout { grid-template-columns: 1fr; }
@@ -81,3 +81,11 @@ pre { margin: 0; padding: 14px; overflow-x: auto; background: var(--night); colo
   .clock { width: 120px; height: 120px; }
   .clock-num b { font-size: 34px; }
 }
+
+/* The program, shown while the owl is still writing it */
+.live { margin-top: 14px; border-radius: 16px; overflow: hidden; border: 2px solid var(--night); }
+.live-title { padding: 8px 14px; font-weight: 700; font-size: 13.5px; background: var(--night); color: var(--sun); }
+.live pre { min-height: 3.2em; white-space: pre-wrap; }
+.live pre::after { content: "▍"; animation: live-blink 1s steps(2) infinite; color: var(--sun); }
+@keyframes live-blink { 50% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .live pre::after { animation: none; } }

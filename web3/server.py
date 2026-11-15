@@ -318,6 +318,8 @@ class Solver:
             try:
                 self.reply, self.thread = "", threading.get_ident()
                 job.update(state="solving", started=time.time())
+                me = threading.get_ident()
+                reason.ON_TEXT = lambda text: job.update(writing=text) if threading.get_ident() == me else None
                 result = pipeline.solve({k: v for k, v in problem.items() if k != "label"})
                 found = re.search(r"```(?:python|py)?\s*\n(.*?)(?:```|$)", self.reply, flags=re.S)
                 program = (found.group(1) if found else self.reply).strip()
@@ -340,6 +342,7 @@ class Solver:
                 job["error"] = f"{type(error).__name__}: {error}"
                 self.eyes("idle")
             finally:
+                reason.ON_TEXT = None
                 job["state"] = "done"
                 if self.grounder:
                     self.grounder.resume()
@@ -347,7 +350,7 @@ class Solver:
     def public(self, job):
         shown = {"id": job["id"], "state": job["state"], "limit": TIME_LIMIT,
                  "elapsed": round(time.time() - job["started"], 1) if job["started"] else 0.0}
-        for field in ("result", "error"):
+        for field in ("result", "error", "writing"):
             if field in job:
                 shown[field] = job[field]
         return shown
@@ -486,6 +489,8 @@ def main():
           f"OCR {'ready' if ocr_ready() else 'not installed'}.")
     print(f"Open http://{args.host}:{args.port} (Ctrl+C to stop)", flush=True)
     eyes("idle")
+    if pipeline.STRATEGY == "math":  # the maths model is not a service: start it now, so the first solve does not wait
+        threading.Thread(target=reason.start_math_server, daemon=True).start()
     ThreadingHTTPServer((args.host, args.port),
                         make_handler(trainer, bank, practice, solver, eyes, args.review)).serve_forever()
 

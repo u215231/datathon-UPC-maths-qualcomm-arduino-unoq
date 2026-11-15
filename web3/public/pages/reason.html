@@ -2,10 +2,9 @@
   <div class="reason-layout">
     <section class="panel ask-panel">
       <h2 data-t="title"></h2>
-      <p data-t="lead"></p>
 
       <div class="drop" id="drop" tabindex="0" role="button">
-        <svg viewBox="0 0 64 48" aria-hidden="true"><rect x="4" y="6" width="56" height="38" rx="7"/><circle cx="22" cy="20" r="5"/><path d="M10 40 L26 26 L36 34 L46 22 L58 36"/></svg>
+        <svg viewBox="0 0 64 48" aria-hidden="true"><rect x="4" y="6" width="56" height="38" /><circle cx="22" cy="20" r="5"/><path d="M10 40 L26 26 L36 34 L46 22 L58 36"/></svg>
         <div><b data-t="drop_title"></b><span class="note" id="drop-note"></span></div>
         <input type="file" id="file" accept="image/*" hidden>
       </div>
@@ -44,6 +43,7 @@
       </div>
       <div class="owl-say" id="r-say" aria-live="polite"></div>
 
+      <div class="live hidden" id="live"><div class="live-title" id="live-title"></div><pre id="live-code"></pre></div>
       <div class="result hidden" id="result">
         <div class="answer-row">
           <div class="letter" id="r-letter"></div>
@@ -58,7 +58,6 @@
         <p id="r-how"></p>
         <div class="probs" id="r-probs"></div>
         <details id="r-program-box"><summary id="r-program-title"></summary><pre id="r-program"></pre></details>
-        <p class="note" data-t="graded"></p>
       </div>
     </section>
   </div>

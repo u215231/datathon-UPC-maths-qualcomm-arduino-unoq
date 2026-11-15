@@ -4,7 +4,7 @@
 .chart .name { font-size: 15px; font-weight: 600; }
 .chart .sub { font-size: 12px; fill: var(--muted); }
 .chart .val { font-size: 16px; font-weight: 800; }
-.chart .bar { fill: #a9d5d8; }
+.chart .bar { fill: var(--line); }
 .chart .bar.ours { fill: var(--accent-strong); }
 .chart .tag { font-size: 11px; font-weight: 700; fill: var(--muted); }
 .chart .grid { stroke: var(--line); stroke-width: 1; }
@@ -17,7 +17,7 @@
 
 .legend { display: flex; flex-wrap: wrap; gap: 8px 22px; margin-top: 10px; font-size: 14px; color: var(--muted); }
 .legend > span { display: inline-flex; align-items: center; gap: 8px; }
-.k { display: inline-block; width: 18px; height: 12px; border-radius: 4px; background: #a9d5d8; }
+.k { display: inline-block; width: 18px; height: 12px; background: var(--line); }
 .k.ours { background: var(--accent-strong); }
 .k.chance { height: 0; border-top: 2px dashed var(--coral); border-radius: 0; background: none; }
 
@@ -28,10 +28,5 @@
 .tile span { display: block; margin-top: 6px; font-weight: 700; }
 .tile em { display: block; margin-top: 2px; font-style: normal; font-size: 13.5px; color: var(--muted); }
 
-.honest { display: flex; gap: 22px; align-items: flex-start; }
-.honest .owl { --owl-size: 120px; }
-.honest ul { margin: 0 0 10px; padding-left: 20px; }
-.honest li { margin-bottom: 8px; }
 
 @media (max-width: 900px) { .tiles { grid-template-columns: 1fr 1fr; } }
-@media (max-width: 560px) { .honest { flex-direction: column; align-items: center; } .honest .owl { --owl-size: 96px; } }

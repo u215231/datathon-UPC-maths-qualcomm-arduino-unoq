@@ -2,30 +2,32 @@
    and the owl. Everything is drawn with CSS and inline SVG, and uses the fonts the device
    already has: the board is offline. */
 :root {
-  --ink: #17363a;
-  --muted: #5a7175;
-  --line: #eadfca;
-  --bg: #fbf6ea;
-  --card: #fffdf8;
-  --accent: #42a9af;          /* the team's teal */
-  --accent-strong: #1b7f86;   /* buttons: white text reads well on it */
-  --accent-ink: #166a70;
-  --accent-soft: #e2f4f4;
-  --sun: #ffb84d;
-  --sun-ink: #8a5600;
-  --sun-soft: #fff0d2;
-  --coral: #d9513c;
-  --coral-soft: #fde8e2;
-  --leaf: #23824a;
-  --leaf-soft: #e1f5e8;
-  --night: #14262b;
+  /* One calm theme, taken from the owl: beige ground, tan, warm browns. */
+  --ink: #3a2a18;
+  --muted: #76664e;
+  --line: #d8c8a6;
+  --bg: #f3ead8;
+  --card: #fbf6ea;
+  --field: #fffdf7;
+  --accent: #b99b63;          /* the owl's tan */
+  --accent-strong: #6b5130;   /* buttons: light text reads well on it */
+  --accent-ink: #553e1f;
+  --accent-soft: #eadfc3;
+  --sun: #e6cd8c;
+  --sun-ink: #553e1f;
+  --sun-soft: #f1e7cb;
+  --coral: #a4502f;           /* wrong */
+  --coral-soft: #f2dfd3;
+  --leaf: #567a36;            /* correct */
+  --leaf-soft: #e2ead0;
+  --night: #3a2a18;
   --ok: var(--leaf);
   --bad: var(--coral);
   --shell: 1180px;
-  --radius: 18px;
-  --shadow: 0 2px 0 rgba(23, 54, 58, .06), 0 10px 24px -14px rgba(23, 54, 58, .25);
+  --radius: 0;
+  --shadow: none;
   --header-h: 66px;
-  --round: ui-rounded, "SF Pro Rounded", "Nunito", "Quicksand", "Varela Round", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --round: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -40,8 +42,6 @@ body {
   font: 16px/1.5 var(--round);
   color: var(--ink);
   background: var(--bg);
-  background-image: radial-gradient(circle at 12px 12px, rgba(66, 169, 175, .10) 1.5px, transparent 2px);
-  background-size: 28px 28px;
 }
 
 a { color: var(--accent-ink); }
@@ -71,7 +71,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .brand { display: flex; align-items: center; min-width: 0; color: inherit; text-decoration: none; }
 .brand-words { display: flex; align-items: center; gap: 14px; min-width: 0; }
 .brand-title { font-size: 24px; line-height: 1; font-weight: 800; letter-spacing: .04em; white-space: nowrap; }
-.brand-title span { color: var(--accent); }
+.brand-title span { color: var(--accent-strong); }
 .brand-subtitle {
   padding-left: 14px;
   border-left: 2px solid var(--line);
@@ -105,8 +105,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
   font-size: 12px;
 }
 .site-nav a:hover { background: var(--accent-soft); color: var(--accent-ink); }
-.site-nav a.active { background: var(--accent-strong); color: #fff; }
-.site-nav a.active b { background: #fff; color: var(--accent-ink); }
+.site-nav a.active { background: var(--accent-strong); color: var(--card); }
+.site-nav a.active b { background: var(--card); color: var(--accent-ink); }
 
 .lang-switch { display: flex; padding: 3px; border-radius: 999px; background: var(--accent-soft); }
 .lang-switch button {
@@ -154,7 +154,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   border: 0;
   border-radius: 999px;
   background: var(--accent-strong);
-  color: #fff;
+  color: var(--card);
   font-weight: 800;
   text-decoration: none;
   cursor: pointer;
@@ -163,8 +163,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 .button:hover, button.primary:hover { background: var(--accent-ink); }
 .button:active, button.primary:active, button.secondary:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--accent-ink); }
-button.secondary { background: var(--sun-soft); color: var(--sun-ink); box-shadow: 0 4px 0 #e9c98a; }
-button.secondary:hover { background: #ffe6b3; }
+button.secondary { background: var(--sun-soft); color: var(--sun-ink); box-shadow: 0 4px 0 var(--line); }
+button.secondary:hover { background: var(--accent-soft); }
 button:disabled { opacity: .5; cursor: not-allowed; }
 
 .pill {
@@ -184,97 +184,80 @@ body.is-navigating #app { opacity: .5; transition: opacity .12s ease; }
 /* ---------- The owl (drawn in owl.js) ---------- */
 .owl { position: relative; width: var(--owl-size, 180px); flex: 0 0 auto; }
 .owl-svg { display: block; width: 100%; height: auto; overflow: visible; }
-.owl-shadow { fill: rgba(23, 54, 58, .12); }
-.owl-coat { fill: #e2a94f; }
-.owl-tuft, .owl-wing { fill: #c98b35; }
-.owl-belly { fill: #fdefcf; }
-.owl-feathers { fill: none; stroke: #e2a94f; stroke-width: 3; stroke-linecap: round; }
-.owl-face { fill: #f6cf85; }
-.owl-feet, .owl-bridge { fill: none; stroke: #ef8a3a; stroke-width: 6; stroke-linecap: round; }
-.owl-bridge { stroke: var(--accent-strong); stroke-width: 5; }
-.owl-beak { fill: #ef8a3a; }
-.owl-lens { fill: var(--night); }
-.owl-rim { fill: none; stroke: var(--accent-strong); stroke-width: 6; }
-.owl-ring { fill: none; stroke: #ff9f2e; stroke-width: 5; }
-.owl-pupil { fill: #ffd27a; }
-.owl-spin { fill: none; stroke: #ffe3a8; stroke-width: 5; stroke-linecap: round; stroke-dasharray: 22 78; opacity: 0; }
-.owl-lid { fill: none; stroke: #ffc35c; stroke-width: 6; stroke-linecap: round; opacity: 0; }
-.owl-brow { fill: none; stroke: #8a5a1c; stroke-width: 7; stroke-linecap: round; opacity: 0; }
-.owl-zzz { opacity: 0; fill: var(--accent-strong); font: 800 22px var(--round); }
+.owl-svg * { stroke-linecap: round; stroke-linejoin: round; }
+.owl-coat { fill: #b99b63; stroke: var(--ink); stroke-width: 3; }
+.owl-cap { fill: #c9a253; stroke: var(--ink); stroke-width: 3; }
+.owl-mask { fill: #a3874a; stroke: var(--ink); stroke-width: 2.5; }
+.owl-wing, .owl-ticks { fill: none; stroke: var(--ink); stroke-width: 2.5; }
+.owl-feet ellipse, .owl-beak { fill: #f0c95a; stroke: var(--ink); stroke-width: 2.5; }
+.owl-white { fill: #fff; }
+.owl-eye-line { fill: none; stroke: var(--ink); stroke-width: 2.5; }
+.owl-pupil ellipse { fill: #1d140b; }
+.owl-glint { fill: #fff; }
+.owl-lid { fill: #8f7540; transform: scaleY(0); }
+.owl-shut, .owl-smile { fill: none; stroke: var(--ink); stroke-width: 2.5; opacity: 0; }
+.owl-zzz { opacity: 0; fill: var(--muted); font: 800 22px var(--round); }
+.owl-dots { opacity: 0; fill: var(--card); stroke: var(--ink); stroke-width: 2; }
 .owl-bulb { opacity: 0; }
-.owl-bulb-glass { fill: var(--sun); stroke: var(--sun-ink); stroke-width: 2; }
-.owl-bulb-base, .owl-rays { fill: none; stroke: var(--sun-ink); stroke-width: 3; stroke-linecap: round; }
-.owl-rays { stroke: var(--sun); }
-.owl-sparks { opacity: 0; fill: var(--sun); }
+.owl-bulb-glass { fill: #f0c95a; stroke: var(--ink); stroke-width: 2.5; }
+.owl-bulb-base { fill: none; stroke: var(--ink); stroke-width: 3; }
 
-.owl-body, .owl-head, .owl-eye-open, .owl-pupil, .owl-ring, .owl-wing, .owl-spin, .owl-brow, .owl-sparks path {
-  transform-box: fill-box; transform-origin: center;
-}
-.owl-pupil, .owl-brow, .owl-lid, .owl-eye-open, .owl-bulb, .owl-zzz { transition: transform .25s, opacity .2s; }
+.owl-body, .owl-head, .owl-pupil, .owl-dots circle { transform-box: fill-box; transform-origin: center; }
+.owl-lid { transform-box: fill-box; transform-origin: top; }
+.owl-pupil, .owl-lid, .owl-shut, .owl-smile, .owl-bulb, .owl-zzz, .owl-dots { transition: transform .25s, opacity .2s; }
 
-/* idle: the eyes blink, and glance now and then */
-.owl[data-state="idle"] .owl-eye-open { animation: owl-blink 5.6s infinite; }
+/* idle: blinks, and glances now and then */
+.owl[data-state="idle"] .owl-lid { animation: owl-blink 5.6s infinite; }
+.owl[data-state="idle"] .owl-shut { animation: owl-blink-line 5.6s infinite; }
 .owl[data-state="idle"] .owl-pupil { animation: owl-glance 13s infinite; }
 .owl[data-state="idle"] .owl-body { animation: owl-breathe 4.5s ease-in-out infinite; }
 
-/* sleeping: the eyes are closed, the z's drift away */
-.owl[data-state="sleeping"] .owl-eye-open { opacity: 0; }
-.owl[data-state="sleeping"] .owl-lid-sleep { opacity: 1; }
+/* sleeping: the eyelids are fully closed, the z's drift away */
+.owl[data-state="sleeping"] .owl-lid { transform: scaleY(1); }
+.owl[data-state="sleeping"] .owl-shut { opacity: 1; }
 .owl[data-state="sleeping"] .owl-zzz { opacity: 1; }
 .owl[data-state="sleeping"] .owl-zzz text { animation: owl-z 3.6s ease-in-out infinite; }
 .owl[data-state="sleeping"] .owl-zzz text:nth-child(2) { animation-delay: .6s; }
 .owl[data-state="sleeping"] .owl-zzz text:nth-child(3) { animation-delay: 1.2s; }
 .owl[data-state="sleeping"] .owl-body { animation: owl-breathe 6s ease-in-out infinite; }
 
-/* thinking: pupils up, a light runs round each eye */
-.owl[data-state="thinking"] .owl-pupil { transform: translateY(-6px); }
-.owl[data-state="thinking"] .owl-ring { opacity: .35; }
-.owl[data-state="thinking"] .owl-spin { opacity: 1; animation: owl-spin 1.3s linear infinite; }
-.owl[data-state="thinking"] .owl-eye-l .owl-spin { animation-direction: reverse; }
+/* thinking: the eyes look up, thought bubbles rise */
+.owl[data-state="thinking"] .owl-pupil { transform: translate(3px, -7px); }
+.owl[data-state="thinking"] .owl-dots { opacity: 1; }
+.owl[data-state="thinking"] .owl-dots circle { animation: owl-dot 1.5s ease-in-out infinite; }
+.owl[data-state="thinking"] .owl-dots circle:nth-child(2) { animation-delay: .25s; }
+.owl[data-state="thinking"] .owl-dots circle:nth-child(3) { animation-delay: .5s; }
 
-/* hint: leans in, raises a brow, winks; the bulb lights up */
+/* hint: leans in, winks, has an idea */
 .owl[data-state="hint"] .owl-body { transform: rotate(-3deg); }
-.owl[data-state="hint"] .owl-brow-r { opacity: 1; transform: translateY(-5px) rotate(8deg); }
-.owl[data-state="hint"] .owl-eye-r .owl-eye-open { animation: owl-wink-open 4.5s infinite; }
-.owl[data-state="hint"] .owl-eye-r .owl-lid-wink { animation: owl-wink-lid 4.5s infinite; }
-.owl[data-state="hint"] .owl-bulb { opacity: 1; animation: owl-glow 1.8s ease-in-out infinite; }
+.owl[data-state="hint"] .owl-eye-r .owl-lid { animation: owl-wink 4.5s infinite; }
+.owl[data-state="hint"] .owl-eye-r .owl-smile { animation: owl-wink-line 4.5s infinite; }
+.owl[data-state="hint"] .owl-bulb { opacity: 1; }
 
-/* correct: happy eyes, a hop, sparkles */
-.owl[data-state="correct"] .owl-eye-open { opacity: 0; }
-.owl[data-state="correct"] .owl-lid-happy { opacity: 1; }
+/* correct: happy closed eyes and a hop */
+.owl[data-state="correct"] .owl-lid { transform: scaleY(1); }
+.owl[data-state="correct"] .owl-smile { opacity: 1; }
 .owl[data-state="correct"] .owl-body { animation: owl-hop .7s ease-in-out 4; }
-.owl[data-state="correct"] .owl-wing-l { animation: owl-flap-l .35s ease-in-out 8; transform-origin: top right; }
-.owl[data-state="correct"] .owl-wing-r { animation: owl-flap-r .35s ease-in-out 8; transform-origin: top left; }
-.owl[data-state="correct"] .owl-sparks { opacity: 1; }
-.owl[data-state="correct"] .owl-sparks path { animation: owl-twinkle 1s ease-in-out infinite; }
-.owl[data-state="correct"] .owl-sparks path:nth-child(2) { animation-delay: .3s; }
-.owl[data-state="correct"] .owl-sparks path:nth-child(3) { animation-delay: .6s; }
 
-/* wrong: kind, never mocking: worried brows, eyes down, a small "not quite" */
-.owl[data-state="wrong"] .owl-pupil { transform: translateY(6px); }
-.owl[data-state="wrong"] .owl-brow { opacity: 1; }
-.owl[data-state="wrong"] .owl-brow-l { transform: rotate(-22deg); }
-.owl[data-state="wrong"] .owl-brow-r { transform: rotate(22deg); }
-.owl[data-state="wrong"] .owl-head { animation: owl-shake .5s ease-in-out 3; }
+/* wrong: kind, never scary: eyes down, lids a little heavy, a small "not quite" */
+.owl[data-state="wrong"] .owl-pupil { transform: translateY(5px); }
+.owl[data-state="wrong"] .owl-eye-l .owl-lid { transform: translateY(-5px) rotate(-16deg) scaleY(.5); }
+.owl[data-state="wrong"] .owl-eye-r .owl-lid { transform: translateY(-5px) rotate(16deg) scaleY(.5); }
+.owl[data-state="wrong"] .owl-head { animation: owl-shake .6s ease-in-out 2; }
 
 /* listening: wide awake, looking up at the student */
-.owl[data-state="listening"] .owl-pupil { transform: translateY(-3px) scale(1.15); }
-.owl[data-state="listening"] .owl-ring { animation: owl-pulse 2.4s ease-in-out infinite; }
+.owl[data-state="listening"] .owl-pupil { transform: translateY(-3px) scale(1.1); }
 
-@keyframes owl-blink { 0%, 93%, 100% { transform: scaleY(1); } 96% { transform: scaleY(.08); } }
-@keyframes owl-glance { 0%, 40%, 52%, 80%, 92%, 100% { transform: none; } 43%, 49% { transform: translateX(-6px); } 83%, 89% { transform: translateX(6px); } }
+@keyframes owl-blink { 0%, 92%, 100% { transform: scaleY(0); } 95%, 97% { transform: scaleY(1); } }
+@keyframes owl-blink-line { 0%, 94%, 98%, 100% { opacity: 0; } 95%, 97% { opacity: 1; } }
+@keyframes owl-glance { 0%, 40%, 52%, 80%, 92%, 100% { transform: none; } 43%, 49% { transform: translateX(-5px); } 83%, 89% { transform: translate(4px, -4px); } }
 @keyframes owl-breathe { 50% { transform: scale(1.012, .988); } }
 @keyframes owl-z { 0% { opacity: 0; transform: translate(-6px, 8px); } 40% { opacity: 1; } 100% { opacity: 0; transform: translate(8px, -10px); } }
-@keyframes owl-spin { to { transform: rotate(360deg); } }
-@keyframes owl-wink-open { 0%, 12%, 34%, 100% { opacity: 1; } 14%, 32% { opacity: 0; } }
-@keyframes owl-wink-lid { 0%, 12%, 34%, 100% { opacity: 0; } 14%, 32% { opacity: 1; } }
-@keyframes owl-glow { 50% { opacity: .55; } }
-@keyframes owl-hop { 40% { transform: translateY(-16px) scale(.98, 1.03); } 70% { transform: translateY(0) scale(1.03, .97); } }
-@keyframes owl-flap-l { 50% { transform: rotate(24deg); } }
-@keyframes owl-flap-r { 50% { transform: rotate(-24deg); } }
-@keyframes owl-twinkle { 50% { transform: scale(.4); opacity: .4; } }
-@keyframes owl-shake { 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
-@keyframes owl-pulse { 50% { opacity: .55; } }
+@keyframes owl-dot { 50% { transform: translateY(-4px); } }
+@keyframes owl-wink { 0%, 10%, 36%, 100% { transform: scaleY(0); } 14%, 32% { transform: scaleY(1); } }
+@keyframes owl-wink-line { 0%, 12%, 34%, 100% { opacity: 0; } 14%, 32% { opacity: 1; } }
+@keyframes owl-hop { 40% { transform: translateY(-14px) scale(.98, 1.03); } 70% { transform: translateY(0) scale(1.03, .97); } }
+@keyframes owl-shake { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
 
 .owl-burst { position: absolute; left: 50%; top: 40%; pointer-events: none; }
 .owl-burst i {
@@ -282,7 +265,7 @@ body.is-navigating #app { opacity: .5; transition: opacity .12s ease; }
   background: var(--sun);
   animation: owl-confetti 1.3s cubic-bezier(.2, .7, .3, 1) forwards;
 }
-.owl-burst i[data-c="1"] { background: var(--accent); border-radius: 50%; height: 10px; }
+.owl-burst i[data-c="1"] { background: var(--accent); height: 10px; }
 .owl-burst i[data-c="2"] { background: var(--coral); }
 .owl-burst i[data-c="3"] { background: var(--leaf); width: 8px; }
 @keyframes owl-confetti {
@@ -315,7 +298,7 @@ body.is-navigating #app { opacity: .5; transition: opacity .12s ease; }
 .site-footer {
   flex: 0 0 auto;
   background: var(--card);
-  border-top: 2px solid var(--accent);
+  border-top: 2px solid var(--line);
 }
 
 .site-footer-inner {
@@ -337,13 +320,7 @@ body.is-navigating #app { opacity: .5; transition: opacity .12s ease; }
   gap: 1px;
 }
 
-.footer-label {
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: .14em;
-  text-transform: uppercase;
-  color: var(--accent-ink);
-}
+.footer-label { font-size: 12px; font-weight: 700; color: var(--muted); }
 
 .footer-team {
   font-size: 14px;
@@ -457,3 +434,7 @@ body.is-navigating #app { opacity: .5; transition: opacity .12s ease; }
   .site-nav a { padding: 0 7px; min-width: 40px; justify-content: center; }
   .lang-switch button { min-width: 34px; padding: 0 4px; }
 }
+
+/* Square corners everywhere. The countdown on the Reason page stays a ring: it is a clock. */
+*, *::before, *::after { border-radius: 0 !important; }
+svg rect { rx: 0; ry: 0; }

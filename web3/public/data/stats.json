@@ -1,19 +1,86 @@
 {
   "_comment": "Every number on the Stats page. Edit here only. Accuracies are correct answers out of 100 on the organisers' practice set (50 problems x English and Catalan). Chance is 20.",
   "updated": "2026-11-15",
-  "set": {"rows": 100, "problems": 50, "chance": 20},
+  "set": {
+    "rows": 100,
+    "problems": 50,
+    "chance": 20
+  },
   "bars": [
-    {"id": "baseline", "accuracy": 22, "where": "board", "en": "Organisers' baseline: one letter", "ca": "Base dels organitzadors: una lletra"},
-    {"id": "think", "accuracy": 25, "where": "board", "en": "Think freely, cut at 50 s", "ca": "Pensar lliurement, tallat als 50 s"},
-    {"id": "qwen2b", "accuracy": 21, "where": "board", "en": "Bigger model: Qwen 2B", "ca": "Model més gran: Qwen 2B"},
-    {"id": "qwen4b", "accuracy": 22, "where": "board", "en": "Bigger model: Qwen 4B", "ca": "Model més gran: Qwen 4B",
-     "note_en": "too slow: 91 of 100 over 60 s", "note_ca": "massa lent: 91 de 100 passen de 60 s"},
-    {"id": "python", "accuracy": 32, "where": "laptop", "en": "Python program only", "ca": "Només el programa Python"},
-    {"id": "shipped_no_balance", "accuracy": 23, "where": "board", "en": "Ours, before letter balancing", "ca": "El nostre, abans d'equilibrar lletres"},
-    {"id": "shipped_board", "accuracy": 27, "where": "board", "shipped": true, "en": "Ours: letter + Python + balancing", "ca": "El nostre: lletra + Python + equilibri"},
-    {"id": "shipped_laptop", "accuracy": 35, "where": "laptop", "shipped": true, "en": "Ours, same code on a laptop", "ca": "El nostre, mateix codi en un portàtil"}
+    {
+      "id": "baseline",
+      "accuracy": 22,
+      "where": "board",
+      "en": "Organisers' baseline: one letter",
+      "ca": "Base dels organitzadors: una lletra"
+    },
+    {
+      "id": "think",
+      "accuracy": 25,
+      "where": "board",
+      "en": "Think freely, cut at 50 s",
+      "ca": "Pensar lliurement, tallat als 50 s"
+    },
+    {
+      "id": "qwen2b",
+      "accuracy": 21,
+      "where": "board",
+      "en": "Bigger model: Qwen 2B",
+      "ca": "Model més gran: Qwen 2B"
+    },
+    {
+      "id": "qwen4b",
+      "accuracy": 22,
+      "where": "board",
+      "en": "Bigger model: Qwen 4B",
+      "ca": "Model més gran: Qwen 4B",
+      "note_en": "too slow: 91 of 100 over 60 s",
+      "note_ca": "massa lent: 91 de 100 passen de 60 s"
+    },
+    {
+      "id": "python",
+      "accuracy": 32,
+      "where": "laptop",
+      "en": "Python program only",
+      "ca": "Només el programa Python"
+    },
+    {
+      "id": "shipped_board",
+      "accuracy": 27,
+      "where": "board",
+      "shipped": true,
+      "en": "Our owl: letter + Python",
+      "ca": "El nostre mussol: lletra + Python"
+    },
+    {
+      "id": "shipped_laptop",
+      "accuracy": 35,
+      "where": "laptop",
+      "shipped": true,
+      "en": "Our owl: letter + Python",
+      "ca": "El nostre mussol: lletra + Python"
+    }
   ],
-  "timing": {"mean_s": 33, "max_s": 49, "over_limit": 0, "limit_s": 60},
-  "program_match": {"board": [5, 7], "laptop": [11, 14]},
-  "finetune": {"memorised": [24, 24]}
+  "timing": {
+    "mean_s": 33,
+    "max_s": 49,
+    "over_limit": 0,
+    "limit_s": 60
+  },
+  "program_match": {
+    "board": [
+      5,
+      7
+    ],
+    "laptop": [
+      11,
+      14
+    ]
+  },
+  "finetune": {
+    "memorised": [
+      24,
+      24
+    ]
+  }
 }

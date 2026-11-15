@@ -7,10 +7,10 @@
 import { esc, renderRichText } from "/pages/rich.js";
 
 const T = {
-  cat: { start_title: "Hola! Comencem?", start_lead: "Digue'm com et dius i tria un nivell. Si l'encertes a la primera, pujaràs de nivell.",
+  cat: { start_title: "Hola! Comencem?",
     name: "El teu nom", level: "Per quin nivell vols començar?", go: "Comença", ladder_title: "Escala de pistes",
-    next: "Següent problema", keys: "Tecles: A–E respon · P pista · N següent", progress_title: "El progrés de", your_level: "El teu nivell ara",
-    how_title: "Com funciona", how_text: "Si t'equivoques, no et diem la resposta. Puges una escala de pistes: primer un problema semblant més fàcil, després el mètode, després la idea del mussol, i només al final la solució. Tot funciona dins del mussol, sense internet.",
+    next: "Següent problema", progress_title: "El progrés de", your_level: "El teu nivell ara",
+
     grade: ["5è de primària", "6è de primària", "1r d'ESO", "2n d'ESO", "3r d'ESO", "4t d'ESO", "1r de batxillerat", "2n de batxillerat"],
     lvl: "Nivell", hint_btn: "Dona'm una pista", solution_btn: "Mostra la solució", no_more: "No hi ha més pistes",
     say_start: "Hola! Soc el mussol. T'ajudaré a pensar, però la resposta la trobaràs tu.",
@@ -22,21 +22,21 @@ const T = {
     say_warm_right: "Molt bé! Ara torna al problema de dalt amb la mateixa idea.",
     r_similar: "Problema semblant", r_method: "Mètode", r_model: "La idea del mussol", r_solution: "Solució",
     h_similar: "Prova primer aquest problema: s'assembla i és més fàcil", h_method: "El mètode",
-    h_board: "La idea del mussol", n_board: "El mussol ha resolt aquest problema tot sol i ha comprovat la resposta. Aquí t'explica com, però explicant-se es pot equivocar: comprova-ho tu.",
-    h_model: "Una idea del model del mussol", n_model: "Ho ha escrit el model petit del mussol: es pot equivocar. Comprova-ho tu.",
+    h_board: "La idea del mussol",
+    h_model: "La idea del mussol",
     h_strategy: "El primer pas", h_solution: "La solució",
-    still: "El mussol encara està pensant la seva pròpia idea…", no_idea: "Aquesta vegada el mussol no ha trobat una idea millor.",
+    still: "El mussol encara hi pensa…",
     warm_wrong: "No és aquesta. Prova una altra opció.",
     solution_is: "La resposta correcta és", confirm: "Segur que vols veure la solució? El següent problema serà més fàcil.",
-    ask_label: "O pregunta al mussol amb les teves paraules (triga uns 20 segons)", ask_btn: "Pregunta",
+    ask_label: "O pregunta al mussol amb les teves paraules", ask_btn: "Pregunta",
     h_ask: "El mussol respon", h_replaced: "El mètode",
-    ask_replaced: "La resposta del model no ha passat les nostres comprovacions (calculava o donava el resultat), així que et donem el mètode.",
-    tried: "Fets", solved: "Resolts", first: "A la primera", hints: "Pistes", problems: "problemes al banc M3Kang", sim: "semblança",
+
+    tried: "Fets", solved: "Resolts", first: "A la primera", hints: "Pistes",
     leave: "Canvia d'estudiant" },
-  eng: { start_title: "Hi! Shall we start?", start_lead: "Tell me your name and pick a level. Get one right first time and you move up a level.",
+  eng: { start_title: "Hi! Shall we start?",
     name: "Your name", level: "Which level do you want to start at?", go: "Start", ladder_title: "Hint ladder",
-    next: "Next problem", keys: "Keys: A–E answer · P hint · N next", progress_title: "Progress of", your_level: "Your level now",
-    how_title: "How it works", how_text: "If you get it wrong, we don't tell you the answer. You climb a ladder of hints: first a similar, easier problem, then the method, then the owl's idea, and only at the end the solution. Everything runs inside the owl, with no internet.",
+    next: "Next problem", progress_title: "Progress of", your_level: "Your level now",
+
     grade: ["Grade 5", "Grade 6", "Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Grade 12"],
     lvl: "Level", hint_btn: "Give me a hint", solution_btn: "Show the solution", no_more: "No more hints",
     say_start: "Hi! I'm the owl. I'll help you think, but you will find the answer.",
@@ -48,16 +48,16 @@ const T = {
     say_warm_right: "Well done! Now go back to the problem above with the same idea.",
     r_similar: "Similar problem", r_method: "Method", r_model: "The owl's idea", r_solution: "Solution",
     h_similar: "First try this problem: it's similar, and easier", h_method: "The method",
-    h_board: "The owl's idea", n_board: "The owl solved this problem by itself and checked its answer. Here it tells you how, but it can explain badly: check it yourself.",
-    h_model: "An idea from the owl's model", n_model: "The owl's small model wrote this: it can be wrong. Check it yourself.",
+    h_board: "The owl's idea",
+    h_model: "The owl's idea",
     h_strategy: "The first step", h_solution: "The solution",
-    still: "The owl is still thinking about its own idea…", no_idea: "This time the owl didn't find a better idea.",
+    still: "The owl is still thinking…",
     warm_wrong: "Not this one. Try another option.",
     solution_is: "The correct answer is", confirm: "Are you sure you want to see the solution? The next problem will be easier.",
-    ask_label: "Or ask the owl in your own words (it takes about 20 seconds)", ask_btn: "Ask",
+    ask_label: "Or ask the owl in your own words", ask_btn: "Ask",
     h_ask: "The owl answers", h_replaced: "The method",
-    ask_replaced: "The model's reply didn't pass our checks (it calculated, or gave the result), so here is the method instead.",
-    tried: "Done", solved: "Solved", first: "First try", hints: "Hints", problems: "problems in the M3Kang bank", sim: "similarity",
+
+    tried: "Done", solved: "Solved", first: "First try", hints: "Hints",
     leave: "Change student" },
 };
 
@@ -101,7 +101,6 @@ export function mount(root) {
     const chosen = $("level").value || "2";
     $("level").innerHTML = t("grade").map((g, i) => `<option value="${i}">${t("lvl")} ${i} · ${esc(g)}</option>`).join("");
     $("level").value = chosen;
-    $("bank").textContent = info ? `${info.problems} ${t("problems")}` : "";
     $("who").textContent = name;
     say(sayKey, sayExtra);
     if (current) { steps(); hintButton(); meta(); }
@@ -171,8 +170,8 @@ export function mount(root) {
     try {
       const r = await api("/ask", { name, id: current.id, question });
       if (!alive) return;
-      const box = hintBox(r.replaced ? "" : "board", r.replaced ? `${t("h_replaced")} · ${r.topic}` : `${t("h_ask")} (${r.seconds} s)`,
-        r.replaced ? t("ask_replaced") : t("n_model"));
+      const box = hintBox(r.replaced ? "" : "board", r.replaced ? `${t("h_replaced")} · ${r.topic}` : t("h_ask"),
+        "");
       box.querySelector(".body").innerHTML = `<div class="q"></div><div class="a"></div>`;
       box.querySelector(".q").textContent = "« " + question + " »";
       box.querySelector(".a").textContent = r.text;
@@ -230,12 +229,9 @@ export function mount(root) {
       if (g.status === "thinking") return;
       clearInterval(poll); strip.remove();
       if (g.text && shown !== "board") {
-        const idea = hintBox("board", t("h_board"), t("n_board"));
+        const idea = hintBox("board", t("h_board"));
         idea.querySelector(".body").textContent = g.text;
         say("say_idea"); Owl.set("hint", { ms: 8000 });
-      } else if (!g.text) {
-        const none = document.createElement("div"); none.className = "note"; none.textContent = t("no_idea");
-        box.append(none);
       }
     }, 3000);
   }
@@ -248,7 +244,7 @@ export function mount(root) {
     rungs = current.ladder.indexOf(h.type) + 1;
     if (h.type === "similar") {
       const box = hintBox("", t("h_similar"));
-      box.querySelector(".body").innerHTML = `<div class="meta"><span class="pill">${esc(t("lvl"))} ${h.problem.level}</span><span class="pill sun">${esc(h.problem.topic_name)}</span><span class="pill">${esc(t("sim"))} ${Math.round(h.similarity * 100)}%</span></div><div class="text"></div><div class="options"></div><div class="verdict"></div>`;
+      box.querySelector(".body").innerHTML = `<div class="meta"><span class="pill">${esc(t("lvl"))} ${h.problem.level}</span><span class="pill sun">${esc(h.problem.topic_name)}</span></div><div class="text"></div><div class="options"></div><div class="verdict"></div>`;
       box.querySelector(".text").innerHTML = body(h.problem.text);
       warm = { problem: h.problem, box: box.querySelector(".options"), verdict: box.querySelector(".verdict"), done: false };
       optionButtons(warm.box, h.problem, warmAnswer);
@@ -260,7 +256,7 @@ export function mount(root) {
       $("p-options").querySelectorAll("button").forEach((b) => { b.disabled = true; if (b.dataset.l === h.label) b.classList.add("right-one"); else b.classList.add("dim"); });
     } else if (h.type === "model") {
       const source = ["board", "model", "strategy"].includes(h.source) ? h.source : "model";
-      const box = hintBox(source === "board" ? "board" : "", t("h_" + source), source === "strategy" ? "" : t("n_" + source));
+      const box = hintBox(source === "board" ? "board" : "", t("h_" + source));
       box.querySelector(".body").textContent = h.text;
       if (h.thinking) waitForIdea(box, source);
     } else {

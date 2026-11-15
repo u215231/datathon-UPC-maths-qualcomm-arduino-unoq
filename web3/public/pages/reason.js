@@ -5,53 +5,53 @@ import { api, esc, renderRichText } from "/pages/rich.js";
 
 const T = {
   eng: {
-    title: "Show the owl a problem", lead: "Drop a picture, type the problem, or pick one from the practice set. The owl has 60 seconds.",
-    drop_title: "Drop a picture of the problem here", drop_ok: "or click to choose one, or paste it (Ctrl+V)",
-    drop_no: "This owl can't read pictures yet (RapidOCR isn't installed here): type the problem below.",
-    reading: "Reading the picture…", read_ok: "The owl read the picture. Check the text and the options, then press Solve.",
+    title: "Show the owl a problem",
+    drop_title: "Drop a picture of the problem here", drop_ok: "",
+    drop_no: "This owl can't read pictures yet. Type the problem below.",
+    reading: "Reading the picture…", read_ok: "Check the text, then press Solve.",
     read_fail: "The owl couldn't read this picture. Type the problem below.",
-    text_label: "The problem", text_ph: "Type or paste the problem here. You can also paste the options as A) … B) … C) … D) … E) …",
+    text_label: "The problem", text_ph: "Type or paste the problem here",
     pick_label: "Or pick a practice problem", pick_none: "Choose a problem…", random: "Surprise me",
     solve: "Solve it!", clear: "Start again", seconds_left: "seconds left",
     say_idle: "Give me a problem and I'll show you how I think.", say_wait: "One moment, I'm finishing another thought…",
-    say_think: "I'm thinking… I first guess a letter, then I write a small program to check.",
+    say_think: "I'm thinking…",
+    live: "The owl is writing a program…",
     say_done_code: "Done! My program's result matches one of the options.", say_done_letter: "Done! This time I went with my best guess.",
     say_error: "Something went wrong. Is the model running?",
-    answer_is: "The owl's answer", in_time: "in {s} s, limit {l} s", too_slow: "{s} s: over the {l} s limit",
+    answer_is: "The owl's answer", in_time: "{s} s", too_slow: "{s} s: too slow",
     key_ok: "The answer key says {k}: correct!", key_bad: "The answer key says {k}: the owl got this one wrong.",
     how_title: "How the owl found it",
-    how_code: "It wrote a Python program, ran it safely, and got {v}. That matches option {a}, so it answered {a}.",
-    how_letter: "It answered with the letter its model finds most likely. The bars show how sure it was.",
-    how_letter_code: "It also wrote a program, but couldn't use it ({r}), so it kept the letter its model finds most likely.",
+    how_code: "It wrote a program and got {v}. That is option {a}.",
+    how_letter: "It chose the letter it finds most likely.",
+    how_letter_code: "Its program didn't help ({r}), so it chose the letter it finds most likely.",
     how_fallback: "It ran out of time or the model didn't answer ({r}), so it gave its fallback letter.",
     program: "The program the owl wrote", level: "Level",
-    graded: "This is the same code that answers the graded test (predict.py). In the test, letters are also balanced across the whole file; that step doesn't apply to a single problem.",
     reasons: { "no option matches": "its result matched no option", "timeout": "the program took too long", "crash": "the program crashed",
       "no output": "the program printed nothing", "not a number": "the result wasn't a number", "no time left": "no time was left",
       "syntax or unsafe": "the program had a mistake or wasn't safe to run", "empty": "there was no program", "no text options": "the options are pictures" },
   },
   cat: {
-    title: "Ensenya un problema al mussol", lead: "Deixa-hi una foto, escriu el problema o tria'n un del conjunt de pràctica. El mussol té 60 segons.",
-    drop_title: "Deixa aquí una foto del problema", drop_ok: "o fes clic per triar-ne una, o enganxa-la (Ctrl+V)",
-    drop_no: "Aquest mussol encara no sap llegir fotos (RapidOCR no està instal·lat aquí): escriu el problema a sota.",
-    reading: "Llegint la foto…", read_ok: "El mussol ha llegit la foto. Comprova el text i les opcions, i prem Resol.",
+    title: "Ensenya un problema al mussol",
+    drop_title: "Deixa aquí una foto del problema", drop_ok: "",
+    drop_no: "Aquest mussol encara no sap llegir fotos. Escriu el problema a sota.",
+    reading: "Llegint la foto…", read_ok: "Comprova el text i prem Resol.",
     read_fail: "El mussol no ha pogut llegir aquesta foto. Escriu el problema a sota.",
-    text_label: "El problema", text_ph: "Escriu o enganxa aquí el problema. També pots enganxar les opcions com A) … B) … C) … D) … E) …",
+    text_label: "El problema", text_ph: "Escriu o enganxa aquí el problema",
     pick_label: "O tria un problema de pràctica", pick_none: "Tria un problema…", random: "Sorprèn-me",
     solve: "Resol-lo!", clear: "Torna a començar", seconds_left: "segons queden",
     say_idle: "Dona'm un problema i t'ensenyaré com penso.", say_wait: "Un moment, estic acabant un altre pensament…",
-    say_think: "Estic pensant… Primer trio una lletra, després escric un petit programa per comprovar-ho.",
+    say_think: "Estic pensant…",
+    live: "El mussol està escrivint un programa…",
     say_done_code: "Fet! El resultat del meu programa coincideix amb una de les opcions.", say_done_letter: "Fet! Aquesta vegada he triat la meva millor aposta.",
     say_error: "Alguna cosa ha fallat. El model està en marxa?",
-    answer_is: "La resposta del mussol", in_time: "en {s} s, límit {l} s", too_slow: "{s} s: per sobre del límit de {l} s",
+    answer_is: "La resposta del mussol", in_time: "{s} s", too_slow: "{s} s: massa lent",
     key_ok: "La clau de respostes diu {k}: correcte!", key_bad: "La clau de respostes diu {k}: aquesta vegada el mussol s'ha equivocat.",
     how_title: "Com l'ha trobat el mussol",
-    how_code: "Ha escrit un programa en Python, l'ha executat de manera segura i ha obtingut {v}. Coincideix amb l'opció {a}, així que ha respost {a}.",
-    how_letter: "Ha respost amb la lletra que el seu model troba més probable. Les barres mostren com n'estava de segur.",
-    how_letter_code: "També ha escrit un programa, però no l'ha pogut fer servir ({r}), així que s'ha quedat amb la lletra que el seu model troba més probable.",
+    how_code: "Ha escrit un programa i ha obtingut {v}. És l'opció {a}.",
+    how_letter: "Ha triat la lletra que troba més probable.",
+    how_letter_code: "El seu programa no ha ajudat ({r}), així que ha triat la lletra que troba més probable.",
     how_fallback: "S'ha quedat sense temps o el model no ha respost ({r}), així que ha donat la lletra de reserva.",
     program: "El programa que ha escrit el mussol", level: "Nivell",
-    graded: "És el mateix codi que respon la prova avaluada (predict.py). A la prova, a més, les lletres s'equilibren entre tot el fitxer; aquest pas no s'aplica a un sol problema.",
     reasons: { "no option matches": "el resultat no coincidia amb cap opció", "timeout": "el programa trigava massa", "crash": "el programa ha fallat",
       "no output": "el programa no ha escrit res", "not a number": "el resultat no era un nombre", "no time left": "no quedava temps",
       "syntax or unsafe": "el programa tenia un error o no era segur", "empty": "no hi havia programa", "no text options": "les opcions són imatges" },
@@ -158,7 +158,7 @@ export function mount(root) {
       : !has ? t("how_fallback", { r: r.status })
       : r.program && r.code_reason && r.code_reason !== "ok" ? t("how_letter_code", { r: why }) : t("how_letter");
     const top = r.letter_guess;
-    $("r-probs").innerHTML = has ? LETTERS.map((l) => `<div class="prob ${l === top ? "top" : ""}"><b>${l}</b><div><i style="width:${Math.round((probs[l] || 0) * 100)}%"></i></div><span>${Math.round((probs[l] || 0) * 100)}%</span></div>`).join("") : "";
+    $("r-probs").innerHTML = has && r.how !== "code" ? LETTERS.map((l) => `<div class="prob ${l === top ? "top" : ""}"><b>${l}</b><div><i style="width:${Math.round((probs[l] || 0) * 100)}%"></i></div><span>${Math.round((probs[l] || 0) * 100)}%</span></div>`).join("") : "";
     $("r-program-box").classList.toggle("hidden", !r.program);
     $("r-program-title").textContent = t("program");
     $("r-program").textContent = r.program || "";
@@ -188,6 +188,7 @@ export function mount(root) {
     $("error").textContent = "";
     if (!text) { $("text").focus(); return; }
     busy = true; $("solve").disabled = true; $("result").classList.add("hidden"); last = null;
+    $("live").classList.add("hidden"); $("live-code").textContent = "";
     setClock(0, info.time_limit); say("say_wait"); Owl.set("thinking");
     let job;
     try {
@@ -205,7 +206,8 @@ export function mount(root) {
       try { now = await api("/api/reason/job?id=" + job.id); } catch { return; }
       if (!alive || !busy) return;
       if (now.state === "solving" && !started) { started = Date.now() - now.elapsed * 1000; say("say_think"); }
-      if (now.state === "done") finish(now, sent);
+      if (now.writing) { $("live").classList.remove("hidden"); $("live-title").textContent = t("live"); $("live-code").textContent = now.writing; }
+      if (now.state === "done") { $("live").classList.add("hidden"); finish(now, sent); }
     }, 400);
   }
 
