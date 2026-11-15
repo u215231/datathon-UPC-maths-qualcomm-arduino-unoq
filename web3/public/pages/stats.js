@@ -3,20 +3,20 @@ import { esc } from "/pages/rich.js";
 
 const T = {
   eng: {
-    title: "How often is the owl right?",
+    title: "How often is Uino right?",
     lead: "Right answers out of {r} practice problems. Guessing gets {c}%.",
-    k_ours: "Our owl", k_other: "Other things we tried", k_chance: "Guessing",
-    chance: "guessing {c}%", board: "in the owl", laptop: "on a laptop",
+    k_ours: "Uino", k_other: "Other things we tried", k_chance: "Guessing",
+    chance: "guessing {c}%", board: "in Uino", laptop: "on a laptop",
     t_mean: "average time", t_mean_s: "limit {l} s",
     t_max: "slowest problem", t_max_s: "{o} over the limit",
     t_prog: "programs that were right", t_prog_s: "when the result matches an option",
     t_ft: "memorised", t_ft_s: "but no better on new problems",
   },
   cat: {
-    title: "Quantes vegades l'encerta el mussol?",
+    title: "Quantes vegades l'encerta Uino?",
     lead: "Respostes correctes de {r} problemes de pràctica. A l'atzar s'encerta el {c}%.",
-    k_ours: "El nostre mussol", k_other: "Altres coses que hem provat", k_chance: "A l'atzar",
-    chance: "a l'atzar {c}%", board: "dins del mussol", laptop: "en un portàtil",
+    k_ours: "Uino", k_other: "Altres coses que hem provat", k_chance: "A l'atzar",
+    chance: "a l'atzar {c}%", board: "dins d'Uino", laptop: "en un portàtil",
     t_mean: "temps mitjà", t_mean_s: "límit {l} s",
     t_max: "el problema més lent", t_max_s: "{o} per sobre del límit",
     t_prog: "programes que eren correctes", t_prog_s: "quan el resultat coincideix amb una opció",

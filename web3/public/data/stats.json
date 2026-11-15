@@ -49,16 +49,16 @@
       "accuracy": 27,
       "where": "board",
       "shipped": true,
-      "en": "Our owl: letter + Python",
-      "ca": "El nostre mussol: lletra + Python"
+      "en": "Uino: letter + Python",
+      "ca": "Uino: lletra + Python"
     },
     {
       "id": "shipped_laptop",
       "accuracy": 35,
       "where": "laptop",
       "shipped": true,
-      "en": "Our owl: letter + Python",
-      "ca": "El nostre mussol: lletra + Python"
+      "en": "Uino: letter + Python",
+      "ca": "Uino: lletra + Python"
     }
   ],
   "timing": {

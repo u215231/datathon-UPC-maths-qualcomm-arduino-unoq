@@ -1,4 +1,4 @@
-/* The owl on the page. It is drawn here as inline SVG (no image files: the board is offline),
+/* Uino on the page. It is drawn here as inline SVG (no image files: the board is offline),
    and its eyes follow the same states as the LED matrix inside the 3D-printed owl
    (owl_eyes/eyes.py): idle (blinks), sleeping (eyes closed, after a quiet while), thinking,
    hint, correct, wrong, listening.
@@ -11,7 +11,7 @@
    The styles and animations are in layout.css (.owl ...). */
 (function () {
   const STATES = ["idle", "sleeping", "thinking", "hint", "correct", "wrong", "listening"];
-  const SLEEP_AFTER = 90000;  // ms without a key or a pointer before the owl falls asleep
+  const SLEEP_AFTER = 90000;  // ms without a key or a pointer before Uino falls asleep
   let state = "idle", backTimer = 0, sleepTimer = 0;
 
   // Each eye: a white oval, a dark pupil with a glint, and an eyelid that comes down over it.
@@ -82,7 +82,7 @@
     else armSleep();
   }
 
-  /* A burst of paper shapes from the owl: only when motion is welcome. */
+  /* A burst of paper shapes from Uino: only when motion is welcome. */
   function celebrate(host) {
     if (!host || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const burst = document.createElement("div");

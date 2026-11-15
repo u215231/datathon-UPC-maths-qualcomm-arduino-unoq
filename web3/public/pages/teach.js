@@ -1,8 +1,8 @@
 /* Teach: the coach. The adaptive trainer and the hint ladder of coach/ (routes under /api/coach/),
-   with the owl as the coach's face:
-   - a wrong answer never shows the solution; the owl asks a guiding question instead;
-   - the ladder is instant: similar easier problem, method, the owl's idea, solution;
-   - "the owl's idea" is the board's own solution put into words when it's ready
+   with Uino as the coach's face:
+   - a wrong answer never shows the solution; Uino asks a guiding question instead;
+   - the ladder is instant: similar easier problem, method, Uino's idea, solution;
+   - "Uino's idea" is the board's own solution put into words when it's ready
      (coach/grounded.py writes it in the background), and the page waits for it kindly when not. */
 import { esc, renderRichText } from "/pages/rich.js";
 
@@ -13,23 +13,23 @@ const T = {
 
     grade: ["5è de primària", "6è de primària", "1r d'ESO", "2n d'ESO", "3r d'ESO", "4t d'ESO", "1r de batxillerat", "2n de batxillerat"],
     lvl: "Nivell", hint_btn: "Dona'm una pista", solution_btn: "Mostra la solució", no_more: "No hi ha més pistes",
-    say_start: "Hola! Soc el mussol. T'ajudaré a pensar, però la resposta la trobaràs tu.",
+    say_start: "Hola! Soc Uino. T'ajudaré a pensar, però la resposta la trobaràs tu.",
     say_problem: "Llegeix amb calma i tria una resposta. Si t'encalles, demana'm una pista.",
     say_right: "Correcte! Molt ben pensat.", say_right_hints: "Correcte! Ho has aconseguit amb les pistes.",
     say_wrong: "Encara no. Pensa-hi:", say_wrong_again: "Tampoc és aquesta. Vols una pista?",
     say_hint: "Aquí tens una pista. Prova-ho de nou!", say_solution: "Aquesta era difícil. El proper serà una mica més fàcil.",
     say_thinking: "Deixa'm pensar…", say_asked: "He respost la teva pregunta a sota.", say_idea: "Ja tinc la meva idea! Mira a sota.",
     say_warm_right: "Molt bé! Ara torna al problema de dalt amb la mateixa idea.",
-    r_similar: "Problema semblant", r_method: "Mètode", r_model: "La idea del mussol", r_solution: "Solució",
+    r_similar: "Problema semblant", r_method: "Mètode", r_model: "La idea d'Uino", r_solution: "Solució",
     h_similar: "Prova primer aquest problema: s'assembla i és més fàcil", h_method: "El mètode",
-    h_board: "La idea del mussol",
-    h_model: "La idea del mussol",
+    h_board: "La idea d'Uino",
+    h_model: "La idea d'Uino",
     h_strategy: "El primer pas", h_solution: "La solució",
-    still: "El mussol encara hi pensa…",
+    still: "Uino encara hi pensa…",
     warm_wrong: "No és aquesta. Prova una altra opció.",
     solution_is: "La resposta correcta és", confirm: "Segur que vols veure la solució? El següent problema serà més fàcil.",
-    ask_label: "O pregunta al mussol amb les teves paraules", ask_btn: "Pregunta",
-    h_ask: "El mussol respon", h_replaced: "El mètode",
+    ask_label: "O pregunta a Uino amb les teves paraules", ask_btn: "Pregunta",
+    h_ask: "Uino respon", h_replaced: "El mètode",
 
     tried: "Fets", solved: "Resolts", first: "A la primera", hints: "Pistes",
     leave: "Canvia d'estudiant" },
@@ -39,23 +39,23 @@ const T = {
 
     grade: ["Grade 5", "Grade 6", "Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Grade 12"],
     lvl: "Level", hint_btn: "Give me a hint", solution_btn: "Show the solution", no_more: "No more hints",
-    say_start: "Hi! I'm the owl. I'll help you think, but you will find the answer.",
+    say_start: "Hi! I'm Uino. I'll help you think, but you will find the answer.",
     say_problem: "Read it calmly and pick an answer. If you get stuck, ask me for a hint.",
     say_right: "Correct! Great thinking.", say_right_hints: "Correct! You got there with the hints.",
     say_wrong: "Not yet. Think about this:", say_wrong_again: "Not that one either. Would you like a hint?",
     say_hint: "Here is a hint. Try again!", say_solution: "That was a hard one. The next one will be a bit easier.",
     say_thinking: "Let me think…", say_asked: "I answered your question below.", say_idea: "I have my own idea now! Look below.",
     say_warm_right: "Well done! Now go back to the problem above with the same idea.",
-    r_similar: "Similar problem", r_method: "Method", r_model: "The owl's idea", r_solution: "Solution",
+    r_similar: "Similar problem", r_method: "Method", r_model: "Uino's idea", r_solution: "Solution",
     h_similar: "First try this problem: it's similar, and easier", h_method: "The method",
-    h_board: "The owl's idea",
-    h_model: "The owl's idea",
+    h_board: "Uino's idea",
+    h_model: "Uino's idea",
     h_strategy: "The first step", h_solution: "The solution",
-    still: "The owl is still thinking…",
+    still: "Uino is still thinking…",
     warm_wrong: "Not this one. Try another option.",
     solution_is: "The correct answer is", confirm: "Are you sure you want to see the solution? The next problem will be easier.",
-    ask_label: "Or ask the owl in your own words", ask_btn: "Ask",
-    h_ask: "The owl answers", h_replaced: "The method",
+    ask_label: "Or ask Uino in your own words", ask_btn: "Ask",
+    h_ask: "Uino answers", h_replaced: "The method",
 
     tried: "Done", solved: "Solved", first: "First try", hints: "Hints",
     leave: "Change student" },
@@ -91,7 +91,7 @@ export function mount(root) {
     return data;
   }
 
-  /* The owl's speech bubble: a line of ours (by key, so it follows the language), then a hint text. */
+  /* Uino's speech bubble: a line of ours (by key, so it follows the language), then a hint text. */
   function say(key, extra = "") {
     sayKey = key; sayExtra = extra;
     $("say").innerHTML = esc(t(key)) + (extra ? `<small>${esc(extra)}</small>` : "");
@@ -211,7 +211,7 @@ export function mount(root) {
     if (r.correct) say("say_warm_right");
   }
 
-  /* The owl's own idea wasn't ready when the student reached its rung: ask now and then, and add it when it is. */
+  /* Uino's own idea wasn't ready when the student reached its rung: ask now and then, and add it when it is. */
   function waitForIdea(box, shown) {
     const strip = document.createElement("div");
     strip.className = "thinking-strip";
