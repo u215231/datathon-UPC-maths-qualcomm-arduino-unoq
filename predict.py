@@ -39,6 +39,11 @@ def main():
         from copilot.rag import Index
         index = Index(args.index)
 
+    if CONFIG.get("REASON_STRATEGY") == "math":  # the maths model runs next to the services; start it if needed
+        from copilot.reason import start_math_server
+        if not start_math_server():
+            print("The maths model server is not up: answering with the 0.8B model instead", file=sys.stderr)
+
     with open(args.input, encoding="utf-8") as f:
         problems = [json.loads(line) for line in f if line.strip()]
 

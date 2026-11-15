@@ -9,7 +9,7 @@ import urllib.error
 
 from .config import CONFIG
 from .llm import URL, answer_letter
-from .reason import solve_code_first, solve_hybrid
+from .reason import math_server_up, solve_code_first, solve_hybrid, solve_math
 
 TIME_LIMIT = float(CONFIG["TIME_LIMIT_SECONDS"])
 FALLBACK = CONFIG["FALLBACK_ANSWER"]
@@ -38,9 +38,9 @@ def solve(problem, index=None, k=0, exclude_id=None, image_b64=None, llm_url=URL
             result["examples"] = hits
             result["retrieved"] = ";".join(f"{p['id']}:{s:.2f}" for s, p in hits)
         remaining = time_limit - (time.perf_counter() - start) - MARGIN
-        if STRATEGY in ("hybrid", "code_first") and not examples and not image_b64 and llm_url == URL:
+        if STRATEGY in ("hybrid", "code_first", "math") and not examples and not image_b64 and llm_url == URL:
             deadline = start + min(ANSWER_BY, time_limit - MARGIN)
-            solver = solve_code_first if STRATEGY == "code_first" else solve_hybrid
+            solver = {"code_first": solve_code_first, "math": solve_math}.get(STRATEGY, solve_hybrid)
             result.update(solver(problem, deadline))
         else:
             letter, timings = answer_letter(problem, examples, timeout=max(remaining, 1.0),

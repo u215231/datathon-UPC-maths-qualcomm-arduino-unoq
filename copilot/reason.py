@@ -12,6 +12,7 @@ For each problem, within one clock:
 Measured on the board (Qwen3.5 0.8B Q8_0): reads ~11 tokens/s, writes ~5.7 tokens/s.
 """
 import ast
+import json
 import math
 import os
 import re
@@ -19,6 +20,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import urllib.request
 
 from .client import post
 from .config import CONFIG
@@ -202,6 +204,119 @@ def solve_code_first(problem, deadline, url=BASE_URL):
             out.update(answer=letter, how="code")
         else:
             out["code_reason"] = "no option matches"
+    return out
+
+
+# --- The maths model: Qwen2.5-Math 1.5B, fine-tuned by us to write short programs (see machine/NOTES_MATH.md) ---
+MATH_URL = f"http://127.0.0.1:{CONFIG.get('MATH_PORT', '8084')}"
+MATH_READ_TPS = float(CONFIG.get("MATH_READ_TOKENS_PER_SECOND", 5.1))
+MATH_WRITE_TPS = float(CONFIG.get("MATH_WRITE_TOKENS_PER_SECOND", 3.0))
+MATH_LETTER_S = 6.0  # kept for the letter question afterwards (it re-reads only its last ~20 tokens)
+
+
+def math_prompt(problem, instruction, start=""):
+    """Qwen2.5 chat format (no thinking block), exactly as in the fine-tuning data."""
+    return ("<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n<|im_start|>user\n"
+            f"{format_problem(problem)}{instruction}<|im_end|>\n<|im_start|>assistant\n{start}")
+
+
+def math_server_up(url=MATH_URL):
+    try:
+        with urllib.request.urlopen(url + "/health", timeout=2) as r:
+            return r.status == 200
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def start_math_server(wait_s=90):
+    """Make sure the maths model's llama-server is running (it is not a systemd service). True when it's up.
+
+    Started detached, so it stays up after predict.py ends and the next run finds it ready."""
+    if math_server_up():
+        return True
+    binary = os.path.join(os.path.expanduser(CONFIG.get("LLAMA_CPP_DIR", "~/llama.cpp")), "build", "bin", "llama-server")
+    model = os.path.join(os.path.expanduser(CONFIG.get("MODELS_DIR", "~/models")), CONFIG.get("MATH_MODEL_FILE", ""))
+    if not (os.path.isfile(binary) and os.path.isfile(model)):
+        print(f"maths model not started: missing {binary if not os.path.isfile(binary) else model}", file=sys.stderr)
+        return False
+    log = open(os.path.join(tempfile.gettempdir(), "math-llm.log"), "ab")
+    subprocess.Popen([binary, "-m", model, "--host", "127.0.0.1", "--port", CONFIG.get("MATH_PORT", "8084"),
+                      "--threads", CONFIG.get("LLM_THREADS", "4"), "--ctx-size", "4096", "--parallel", "1",
+                      "--cache-ram", "0"], stdout=log, stderr=log, stdin=subprocess.DEVNULL, start_new_session=True)
+    end = time.time() + wait_s
+    while time.time() < end:
+        if math_server_up():
+            return True
+        time.sleep(1)
+    return False
+
+
+ON_TEXT = None  # set by the web page to a function(text_so_far): shows the program while it is being written
+
+
+def _complete(url, payload, timeout):
+    """POST /completion. With ON_TEXT set, stream the reply and report it as it grows; same return value."""
+    if ON_TEXT is None:
+        return post(url + "/completion", payload, timeout=timeout)
+    request = urllib.request.Request(url + "/completion", json.dumps({**payload, "stream": True}).encode(),
+                                     {"Content-Type": "application/json"})
+    content, last = "", {}
+    with urllib.request.urlopen(request, timeout=timeout) as reply:
+        for line in reply:
+            if not line.startswith(b"data: "):
+                continue
+            last = json.loads(line[6:])
+            content += last.get("content", "")
+            try:
+                ON_TEXT(content)
+            except Exception:  # noqa: BLE001 - showing progress must never break the answer
+                pass
+    return {"content": content, "timings": last.get("timings", {})}
+
+
+def solve_math(problem, deadline, url=MATH_URL):
+    """The maths model writes a short program, then gives its letter probabilities. Same return value as
+    solve_hybrid. The program is asked first; the letter question shares the problem text, which a plain
+    transformer's cache keeps, so it costs ~4 s. Any trouble before a letter exists -> solve_hybrid (0.8B)."""
+    out = {"how": "letter", "lp": None, "code_value": None, "code_reason": "", "prompt_tokens": 0}
+    content = ""
+    try:
+        if problem.get("options"):
+            prompt = math_prompt(problem, CODE_INSTRUCTION, "```python\n")
+            n_prompt = len(post(url + "/tokenize", {"content": prompt}, timeout=5).get("tokens", []))
+            write_s = deadline - time.perf_counter() - n_prompt / MATH_READ_TPS - MATH_LETTER_S
+            if write_s >= 4:
+                r = _complete(url, {
+                    "prompt": prompt, "n_predict": min(int(write_s * MATH_WRITE_TPS), 200), "temperature": 0,
+                    "seed": int(CONFIG["SEED"]), "cache_prompt": True, "stop": ["```"],
+                    "t_max_predict_ms": int(write_s * 1000),
+                }, timeout=max(deadline - time.perf_counter() - MATH_LETTER_S + 2.0, 1.0))
+                content = r.get("content", "")
+                out["prompt_tokens"] = r.get("timings", {}).get("prompt_n", 0)
+            else:
+                out["code_reason"] = "no time left"
+        else:
+            out["code_reason"] = "no text options"
+        lp = letter_logprobs(math_prompt(problem, "\nAnswer with the letter of the correct option only.",
+                                         "The answer is "),
+                             timeout=max(deadline + 7.0 - time.perf_counter(), 2.0), url=url)
+        out.update(lp=lp, answer=max(lp, key=lp.get))
+    except Exception as error:  # noqa: BLE001 - the maths server is down or slow: the 0.8B route, if time allows
+        if deadline - time.perf_counter() > 18:
+            fallback = solve_hybrid(problem, deadline)
+            fallback["code_reason"] = f"maths model failed ({type(error).__name__}); " + fallback.get("code_reason", "")
+            return fallback
+        raise
+    if content:
+        value, reason = run_program("```python\n" + content + "\n```",
+                                    timeout=min(3.0, max(deadline + 5.0 - time.perf_counter(), 0.2)))
+        out.update(code_value=value, code_reason=reason)
+        if value is not None:
+            letter = matching_option(value, problem.get("options"))
+            if letter:
+                out.update(answer=letter, how="code")
+            else:
+                out["code_reason"] = "no option matches"
     return out
 
 
