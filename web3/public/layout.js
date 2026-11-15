@@ -79,7 +79,7 @@
             ${pages.map((page, i) => `
               <a href="${page.href}" data-page="${page.key}" data-nav>
                 <svg viewBox="0 0 24 24" aria-hidden="true">${ICON[page.key]}</svg>
-                <span class="nav-label">${i ? `<b>${i}</b>` : ""}${lang === "cat" ? page.ca : page.en}</span>
+                <span class="nav-label">${lang === "cat" ? page.ca : page.en}</span>
               </a>`).join("")}
           </nav>
           <div class="lang-switch" role="group" aria-label="${s.lang}">
