@@ -89,3 +89,12 @@ pre { margin: 0; padding: 14px; overflow-x: auto; background: var(--night); colo
 .live pre::after { content: "▍"; animation: live-blink 1s steps(2) infinite; color: var(--sun); }
 @keyframes live-blink { 50% { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .live pre::after { animation: none; } }
+
+/* Right or wrong, unmissable: a solid banner on top and the letter tile in the same colour */
+.key { margin: 0 0 14px; padding: 14px 18px; font-size: 22px; font-weight: 800; }
+.key.ok { background: var(--leaf); color: #fff; }
+.key.bad { background: var(--coral); color: #fff; }
+.result.is-ok .letter { background: var(--leaf); color: #fff; border-color: var(--leaf); box-shadow: none; }
+.result.is-bad .letter { background: var(--coral); color: #fff; border-color: var(--coral); box-shadow: none; }
+.result.is-ok { border-left: 8px solid var(--leaf); padding-left: 14px; }
+.result.is-bad { border-left: 8px solid var(--coral); padding-left: 14px; }

@@ -19,7 +19,7 @@ const T = {
     say_done_code: "Done! My program's result matches one of the options.", say_done_letter: "Done! This time I went with my best guess.",
     say_error: "Something went wrong. Is the model running?",
     answer_is: "Uino's answer", in_time: "{s} s", too_slow: "{s} s: too slow",
-    key_ok: "The answer key says {k}: correct!", key_bad: "The answer key says {k}: Uino got this one wrong.",
+    key_ok: "✓ Correct", key_bad: "✗ Wrong: the answer is {k}", say_right: "I got it right!", say_wrong: "Oh no, I got this one wrong.",
     how_title: "How Uino found it",
     how_code: "It wrote a program and got {v}. That is option {a}.",
     how_letter: "It chose the letter it finds most likely.",
@@ -45,7 +45,7 @@ const T = {
     say_done_code: "Fet! El resultat del meu programa coincideix amb una de les opcions.", say_done_letter: "Fet! Aquesta vegada he triat la meva millor aposta.",
     say_error: "Alguna cosa ha fallat. El model està en marxa?",
     answer_is: "La resposta d'Uino", in_time: "{s} s", too_slow: "{s} s: massa lent",
-    key_ok: "La clau de respostes diu {k}: correcte!", key_bad: "La clau de respostes diu {k}: aquesta vegada Uino s'ha equivocat.",
+    key_ok: "✓ Correcte", key_bad: "✗ Incorrecte: la resposta és {k}", say_right: "L'he encertat!", say_wrong: "Oh no, aquesta l'he fallat.",
     how_title: "Com l'ha trobat Uino",
     how_code: "Ha escrit un programa i ha obtingut {v}. És l'opció {a}.",
     how_letter: "Ha triat la lletra que troba més probable.",
@@ -147,8 +147,10 @@ export function mount(root) {
     $("r-value").innerHTML = value ? renderRichText(value, true) : "";
     $("r-time").textContent = t(r.seconds > limit ? "too_slow" : "in_time", { s: Number(r.seconds).toFixed(1), l: limit });
     $("r-key").classList.toggle("hidden", r.correct === null || r.correct === undefined);
+    $("result").classList.remove("is-ok", "is-bad");
     if (r.correct !== null && r.correct !== undefined) {
       $("r-key").className = "key " + (r.correct ? "ok" : "bad");
+      $("result").classList.toggle("is-ok", !!r.correct); $("result").classList.toggle("is-bad", !r.correct);
       $("r-key").textContent = t(r.correct ? "key_ok" : "key_bad", { k: r.label });
     }
     const why = T[App.lang].reasons[r.code_reason] || r.code_reason || r.status;
@@ -175,9 +177,9 @@ export function mount(root) {
     setClock(r.seconds, r.limit || info.time_limit);
     $("clock-n").textContent = Math.max(0, Math.round((r.limit || info.time_limit) - r.seconds));
     showResult(r);
-    say(r.how === "code" ? "say_done_code" : "say_done_letter");
-    if (r.correct) { Owl.set("correct", { ms: 7000 }); owl.celebrate(); }
-    else Owl.set("hint", { ms: 8000 });
+    if (r.correct === true) { say("say_right"); Owl.set("correct", { ms: 7000 }); owl.celebrate(); }
+    else if (r.correct === false) { say("say_wrong"); Owl.set("wrong", { ms: 8000 }); }
+    else { say(r.how === "code" ? "say_done_code" : "say_done_letter"); Owl.set("hint", { ms: 8000 }); }
     $("result").scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
 

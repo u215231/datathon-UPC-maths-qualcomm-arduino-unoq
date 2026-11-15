@@ -338,7 +338,7 @@ class Solver:
                     "letter_guess": max(lp, key=lp.get) if lp else None,
                     "label": label, "correct": (result.get("answer") == label) if label else None,
                     "strategy": pipeline.STRATEGY, "limit": TIME_LIMIT}
-                self.eyes("correct" if job["result"]["correct"] else "hint")
+                self.eyes({True: "correct", False: "wrong"}.get(job["result"]["correct"], "hint"))
             except Exception as error:  # noqa: BLE001 - the page shows it
                 job["error"] = f"{type(error).__name__}: {error}"
                 self.eyes("idle")
