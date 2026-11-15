@@ -9,12 +9,13 @@ import urllib.error
 
 from .config import CONFIG
 from .llm import URL, answer_letter
-from .reason import solve_hybrid
+from .reason import math_server_up, solve_code_first, solve_hybrid, solve_math
 
 TIME_LIMIT = float(CONFIG["TIME_LIMIT_SECONDS"])
 FALLBACK = CONFIG["FALLBACK_ANSWER"]
 MARGIN = 3.0  # seconds kept free for Python and for writing the answer
-# "hybrid" = letter probabilities + a Python program (copilot/reason.py); "letter" = one letter, as before
+# "hybrid" = letter probabilities, then a Python program (copilot/reason.py); "code_first" = the program,
+# then the letter as a follow-up turn (reads the problem once); "letter" = one letter, as before
 STRATEGY = CONFIG.get("REASON_STRATEGY", "hybrid")
 ANSWER_BY = float(CONFIG.get("ANSWER_BY_SECONDS", 50))  # stop thinking here, well before the 60 s limit
 
@@ -37,9 +38,10 @@ def solve(problem, index=None, k=0, exclude_id=None, image_b64=None, llm_url=URL
             result["examples"] = hits
             result["retrieved"] = ";".join(f"{p['id']}:{s:.2f}" for s, p in hits)
         remaining = time_limit - (time.perf_counter() - start) - MARGIN
-        if STRATEGY == "hybrid" and not examples and not image_b64 and llm_url == URL:
+        if STRATEGY in ("hybrid", "code_first", "math") and not examples and not image_b64 and llm_url == URL:
             deadline = start + min(ANSWER_BY, time_limit - MARGIN)
-            result.update(solve_hybrid(problem, deadline))
+            solver = {"code_first": solve_code_first, "math": solve_math}.get(STRATEGY, solve_hybrid)
+            result.update(solver(problem, deadline))
         else:
             letter, timings = answer_letter(problem, examples, timeout=max(remaining, 1.0),
                                             image_b64=image_b64, url=llm_url)

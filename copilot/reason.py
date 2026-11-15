@@ -12,6 +12,7 @@ For each problem, within one clock:
 Measured on the board (Qwen3.5 0.8B Q8_0): reads ~11 tokens/s, writes ~5.7 tokens/s.
 """
 import ast
+import json
 import math
 import os
 import re
@@ -19,6 +20,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import urllib.request
 
 from .client import post
 from .config import CONFIG
@@ -152,6 +154,177 @@ def solve_hybrid(problem, deadline, url=BASE_URL):
             out.update(answer=letter, how="code")
         else:
             out["code_reason"] = "no option matches"
+    return out
+
+
+READ_TPS = float(CONFIG.get("READ_TOKENS_PER_SECOND", 11.1))
+# Asked after the program, in the same conversation, so llama-server reads only these ~25 new tokens (~3.5 s
+# on the board) instead of the whole problem again (~13 s): Qwen3.5 is a hybrid recurrent model, and its
+# prompt cache can only be extended, not rewound to where two prompts start to differ.
+LETTER_FOLLOW_UP = ("<|im_end|>\n<|im_start|>user\nWhich option is correct? Answer with the letter only.<|im_end|>\n"
+                    "<|im_start|>assistant\n<think>\n\n</think>\n\n")
+LETTER_RESERVE_S = 6.0  # kept for the letter follow-up and for running the program
+
+
+def solve_code_first(problem, deadline, url=BASE_URL):
+    """Program first, then the letter as a follow-up turn. Same return value as solve_hybrid.
+
+    The program gets the ~13 s that reading the problem a second time used to cost on the board.
+    If anything goes wrong before a letter exists, fall back to solve_hybrid's plain letter route.
+    """
+    if not problem.get("options"):  # options are pictures: nothing to compute against
+        return solve_hybrid(problem, deadline, url=url)
+    out = {"how": "letter", "lp": None, "code_value": None, "code_reason": "", "prompt_tokens": 0}
+    prompt = chat_prompt(problem, CODE_INSTRUCTION)
+    try:
+        n_prompt = len(post(url + "/tokenize", {"content": prompt}, timeout=5).get("tokens", []))
+        left = deadline - time.perf_counter()
+        write_s = left - n_prompt / READ_TPS - LETTER_RESERVE_S
+        if write_s < 5:  # a very long problem: no time to write a program
+            return solve_hybrid(problem, deadline, url=url)
+        r = post(url + "/completion", {
+            "prompt": prompt, "n_predict": min(int(write_s * WRITE_TPS), 300), "temperature": 0,
+            "seed": int(CONFIG["SEED"]), "cache_prompt": True, "t_max_predict_ms": int(write_s * 1000),
+        }, timeout=max(deadline - time.perf_counter() - 2.0, 1.0))
+    except Exception as error:  # noqa: BLE001 - timeout or server trouble: the plain letter route, if time allows
+        out["code_reason"] = f"generation: {type(error).__name__}"
+        if deadline - time.perf_counter() > 15:
+            return solve_hybrid(problem, deadline, url=url)
+        raise
+    content = r.get("content", "")
+    out["prompt_tokens"] = r.get("timings", {}).get("prompt_n", 0)
+    lp = letter_logprobs(prompt + content + LETTER_FOLLOW_UP,
+                         timeout=max(deadline + 8.0 - time.perf_counter(), 2.0), url=url)
+    out.update(lp=lp, answer=max(lp, key=lp.get))
+    value, reason = run_program(content, timeout=min(3.0, max(deadline + 5.0 - time.perf_counter(), 0.2)))
+    out.update(code_value=value, code_reason=reason)
+    if value is not None:
+        letter = matching_option(value, problem.get("options"))
+        if letter:
+            out.update(answer=letter, how="code")
+        else:
+            out["code_reason"] = "no option matches"
+    return out
+
+
+# --- The maths model: Qwen2.5-Math 1.5B, fine-tuned by us to write short programs (see machine/NOTES_MATH.md) ---
+MATH_URL = f"http://127.0.0.1:{CONFIG.get('MATH_PORT', '8084')}"
+MATH_READ_TPS = float(CONFIG.get("MATH_READ_TOKENS_PER_SECOND", 5.1))
+MATH_WRITE_TPS = float(CONFIG.get("MATH_WRITE_TOKENS_PER_SECOND", 3.0))
+MATH_LETTER_S = 6.0  # kept for the letter question afterwards (it re-reads only its last ~20 tokens)
+
+
+def math_prompt(problem, instruction, start=""):
+    """Qwen2.5 chat format (no thinking block), exactly as in the fine-tuning data."""
+    return ("<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n<|im_start|>user\n"
+            f"{format_problem(problem)}{instruction}<|im_end|>\n<|im_start|>assistant\n{start}")
+
+
+def math_server_up(url=MATH_URL):
+    try:
+        with urllib.request.urlopen(url + "/health", timeout=2) as r:
+            return r.status == 200
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def start_math_server(wait_s=90):
+    """Make sure the maths model's llama-server is running (it is not a systemd service). True when it's up.
+
+    Started detached, so it stays up after predict.py ends and the next run finds it ready."""
+    if math_server_up():
+        return True
+    binary = os.path.join(os.path.expanduser(CONFIG.get("LLAMA_CPP_DIR", "~/llama.cpp")), "build", "bin", "llama-server")
+    model = os.path.join(os.path.expanduser(CONFIG.get("MODELS_DIR", "~/models")), CONFIG.get("MATH_MODEL_FILE", ""))
+    if not (os.path.isfile(binary) and os.path.isfile(model)):
+        print(f"maths model not started: missing {binary if not os.path.isfile(binary) else model}", file=sys.stderr)
+        return False
+    log = open(os.path.join(tempfile.gettempdir(), "math-llm.log"), "ab")
+    subprocess.Popen([binary, "-m", model, "--host", "127.0.0.1", "--port", CONFIG.get("MATH_PORT", "8084"),
+                      "--threads", CONFIG.get("LLM_THREADS", "4"), "--ctx-size", "4096", "--parallel", "1",
+                      "--cache-ram", "0"], stdout=log, stderr=log, stdin=subprocess.DEVNULL, start_new_session=True)
+    end = time.time() + wait_s
+    while time.time() < end:
+        if math_server_up():
+            return True
+        time.sleep(1)
+    return False
+
+
+ON_TEXT = None  # set by the web page to a function(text_so_far): shows the program while it is being written
+
+
+def _complete(url, payload, until):
+    """POST /completion, streamed, and stop reading at `until` (a time.perf_counter() value) whatever the
+    server is doing: llama-server's own time limit only acts after a line break. Returns content, timings
+    and whether the reply was cut. ON_TEXT, when set, is told the text as it grows."""
+    request = urllib.request.Request(url + "/completion", json.dumps({**payload, "stream": True}).encode(),
+                                     {"Content-Type": "application/json"})
+    content, last, cut = "", {}, False
+    with urllib.request.urlopen(request, timeout=max(until - time.perf_counter(), 1.0)) as reply:
+        for line in reply:
+            if line.startswith(b"data: "):
+                last = json.loads(line[6:])
+                content += last.get("content", "")
+                if ON_TEXT is not None:
+                    try:
+                        ON_TEXT(content)
+                    except Exception:  # noqa: BLE001 - showing progress must never break the answer
+                        pass
+            if time.perf_counter() > until and not last.get("stop"):
+                cut = True
+                break  # closing the connection makes the server stop writing
+    return {"content": content, "timings": last.get("timings", {}), "cut": cut}
+
+
+def solve_math(problem, deadline, url=MATH_URL):
+    """The maths model writes a short program, then gives its letter probabilities. Same return value as
+    solve_hybrid. The program is asked first; the letter question shares the problem text, which a plain
+    transformer's cache keeps, so it costs ~4 s. Any trouble before a letter exists -> solve_hybrid (0.8B)."""
+    out = {"how": "letter", "lp": None, "code_value": None, "code_reason": "", "prompt_tokens": 0}
+    content = ""
+    if problem.get("options"):
+        try:
+            prompt = math_prompt(problem, CODE_INSTRUCTION, "```python\n")
+            n_prompt = len(post(url + "/tokenize", {"content": prompt}, timeout=5).get("tokens", []))
+            write_s = deadline - time.perf_counter() - n_prompt / MATH_READ_TPS - MATH_LETTER_S
+            if write_s >= 4:
+                r = _complete(url, {
+                    "prompt": prompt, "n_predict": min(int(write_s * MATH_WRITE_TPS), 200), "temperature": 0,
+                    "seed": int(CONFIG["SEED"]), "cache_prompt": True, "stop": ["```"],
+                }, until=deadline - MATH_LETTER_S)
+                out["prompt_tokens"] = r.get("timings", {}).get("prompt_n", 0)
+                if r["cut"]:
+                    out["code_reason"] = "no time left"
+                else:
+                    content = r["content"]
+            else:
+                out["code_reason"] = "no time left"
+        except Exception as error:  # noqa: BLE001 - no program: the letter question below still answers
+            out["code_reason"] = f"generation: {type(error).__name__}"
+    else:
+        out["code_reason"] = "no text options"
+    try:
+        lp = letter_logprobs(math_prompt(problem, "\nAnswer with the letter of the correct option only.",
+                                         "The answer is "),
+                             timeout=max(deadline + 7.0 - time.perf_counter(), 2.0), url=url)
+        out.update(lp=lp, answer=max(lp, key=lp.get))
+    except Exception as error:  # noqa: BLE001 - the maths server is down or slow: the 0.8B route, if time allows
+        if deadline - time.perf_counter() > 18:
+            fallback = solve_hybrid(problem, deadline)
+            fallback["code_reason"] = f"maths model failed ({type(error).__name__}); " + fallback.get("code_reason", "")
+            return fallback
+        raise
+    if content:
+        value, reason = run_program("```python\n" + content + "\n```",
+                                    timeout=min(3.0, max(deadline + 5.0 - time.perf_counter(), 0.2)))
+        out.update(code_value=value, code_reason=reason)
+        if value is not None:
+            letter = matching_option(value, problem.get("options"))
+            if letter:
+                out.update(answer=letter, how="code")
+            else:
+                out["code_reason"] = "no option matches"
     return out
 
 
