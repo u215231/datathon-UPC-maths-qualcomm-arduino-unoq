@@ -47,6 +47,7 @@ SHELL_ROUTES = {"/", "/home", "/teach", "/coach", "/reason", "/solver", "/agent"
 LLM = f"http://127.0.0.1:{CONFIG['LLM_PORT']}"
 LETTERS = "ABCDE"
 MAX_BODY = 15 * 1024 * 1024
+TIME_LIMIT = float(CONFIG["TIME_LIMIT_SECONDS"])
 UPLOADED = os.path.join(ROOT, "data", "uploaded.jsonl")
 IMAGES = os.path.join(ROOT, "data", "images")
 OCR_SCRIPT = os.path.join(HERE, "read_picture.py")  # RapidOCR, with m3kang/image_to_json.py's parsing
