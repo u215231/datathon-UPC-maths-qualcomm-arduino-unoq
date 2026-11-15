@@ -155,6 +155,56 @@ def solve_hybrid(problem, deadline, url=BASE_URL):
     return out
 
 
+READ_TPS = float(CONFIG.get("READ_TOKENS_PER_SECOND", 11.1))
+# Asked after the program, in the same conversation, so llama-server reads only these ~25 new tokens (~3.5 s
+# on the board) instead of the whole problem again (~13 s): Qwen3.5 is a hybrid recurrent model, and its
+# prompt cache can only be extended, not rewound to where two prompts start to differ.
+LETTER_FOLLOW_UP = ("<|im_end|>\n<|im_start|>user\nWhich option is correct? Answer with the letter only.<|im_end|>\n"
+                    "<|im_start|>assistant\n<think>\n\n</think>\n\n")
+LETTER_RESERVE_S = 6.0  # kept for the letter follow-up and for running the program
+
+
+def solve_code_first(problem, deadline, url=BASE_URL):
+    """Program first, then the letter as a follow-up turn. Same return value as solve_hybrid.
+
+    The program gets the ~13 s that reading the problem a second time used to cost on the board.
+    If anything goes wrong before a letter exists, fall back to solve_hybrid's plain letter route.
+    """
+    if not problem.get("options"):  # options are pictures: nothing to compute against
+        return solve_hybrid(problem, deadline, url=url)
+    out = {"how": "letter", "lp": None, "code_value": None, "code_reason": "", "prompt_tokens": 0}
+    prompt = chat_prompt(problem, CODE_INSTRUCTION)
+    try:
+        n_prompt = len(post(url + "/tokenize", {"content": prompt}, timeout=5).get("tokens", []))
+        left = deadline - time.perf_counter()
+        write_s = left - n_prompt / READ_TPS - LETTER_RESERVE_S
+        if write_s < 5:  # a very long problem: no time to write a program
+            return solve_hybrid(problem, deadline, url=url)
+        r = post(url + "/completion", {
+            "prompt": prompt, "n_predict": min(int(write_s * WRITE_TPS), 300), "temperature": 0,
+            "seed": int(CONFIG["SEED"]), "cache_prompt": True, "t_max_predict_ms": int(write_s * 1000),
+        }, timeout=max(deadline - time.perf_counter() - 2.0, 1.0))
+    except Exception as error:  # noqa: BLE001 - timeout or server trouble: the plain letter route, if time allows
+        out["code_reason"] = f"generation: {type(error).__name__}"
+        if deadline - time.perf_counter() > 15:
+            return solve_hybrid(problem, deadline, url=url)
+        raise
+    content = r.get("content", "")
+    out["prompt_tokens"] = r.get("timings", {}).get("prompt_n", 0)
+    lp = letter_logprobs(prompt + content + LETTER_FOLLOW_UP,
+                         timeout=max(deadline + 8.0 - time.perf_counter(), 2.0), url=url)
+    out.update(lp=lp, answer=max(lp, key=lp.get))
+    value, reason = run_program(content, timeout=min(3.0, max(deadline + 5.0 - time.perf_counter(), 0.2)))
+    out.update(code_value=value, code_reason=reason)
+    if value is not None:
+        letter = matching_option(value, problem.get("options"))
+        if letter:
+            out.update(answer=letter, how="code")
+        else:
+            out["code_reason"] = "no option matches"
+    return out
+
+
 def hungarian(cost):
     """Minimum-cost assignment of every row to a different column (rows <= columns). Pure Python, O(n^2 m)."""
     n, m = len(cost), len(cost[0])
