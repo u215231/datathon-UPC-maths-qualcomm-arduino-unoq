@@ -254,24 +254,27 @@ def start_math_server(wait_s=90):
 ON_TEXT = None  # set by the web page to a function(text_so_far): shows the program while it is being written
 
 
-def _complete(url, payload, timeout):
-    """POST /completion. With ON_TEXT set, stream the reply and report it as it grows; same return value."""
-    if ON_TEXT is None:
-        return post(url + "/completion", payload, timeout=timeout)
+def _complete(url, payload, until):
+    """POST /completion, streamed, and stop reading at `until` (a time.perf_counter() value) whatever the
+    server is doing: llama-server's own time limit only acts after a line break. Returns content, timings
+    and whether the reply was cut. ON_TEXT, when set, is told the text as it grows."""
     request = urllib.request.Request(url + "/completion", json.dumps({**payload, "stream": True}).encode(),
                                      {"Content-Type": "application/json"})
-    content, last = "", {}
-    with urllib.request.urlopen(request, timeout=timeout) as reply:
+    content, last, cut = "", {}, False
+    with urllib.request.urlopen(request, timeout=max(until - time.perf_counter(), 1.0)) as reply:
         for line in reply:
-            if not line.startswith(b"data: "):
-                continue
-            last = json.loads(line[6:])
-            content += last.get("content", "")
-            try:
-                ON_TEXT(content)
-            except Exception:  # noqa: BLE001 - showing progress must never break the answer
-                pass
-    return {"content": content, "timings": last.get("timings", {})}
+            if line.startswith(b"data: "):
+                last = json.loads(line[6:])
+                content += last.get("content", "")
+                if ON_TEXT is not None:
+                    try:
+                        ON_TEXT(content)
+                    except Exception:  # noqa: BLE001 - showing progress must never break the answer
+                        pass
+            if time.perf_counter() > until and not last.get("stop"):
+                cut = True
+                break  # closing the connection makes the server stop writing
+    return {"content": content, "timings": last.get("timings", {}), "cut": cut}
 
 
 def solve_math(problem, deadline, url=MATH_URL):
@@ -280,8 +283,8 @@ def solve_math(problem, deadline, url=MATH_URL):
     transformer's cache keeps, so it costs ~4 s. Any trouble before a letter exists -> solve_hybrid (0.8B)."""
     out = {"how": "letter", "lp": None, "code_value": None, "code_reason": "", "prompt_tokens": 0}
     content = ""
-    try:
-        if problem.get("options"):
+    if problem.get("options"):
+        try:
             prompt = math_prompt(problem, CODE_INSTRUCTION, "```python\n")
             n_prompt = len(post(url + "/tokenize", {"content": prompt}, timeout=5).get("tokens", []))
             write_s = deadline - time.perf_counter() - n_prompt / MATH_READ_TPS - MATH_LETTER_S
@@ -289,14 +292,19 @@ def solve_math(problem, deadline, url=MATH_URL):
                 r = _complete(url, {
                     "prompt": prompt, "n_predict": min(int(write_s * MATH_WRITE_TPS), 200), "temperature": 0,
                     "seed": int(CONFIG["SEED"]), "cache_prompt": True, "stop": ["```"],
-                    "t_max_predict_ms": int(write_s * 1000),
-                }, timeout=max(deadline - time.perf_counter() - MATH_LETTER_S + 2.0, 1.0))
-                content = r.get("content", "")
+                }, until=deadline - MATH_LETTER_S)
                 out["prompt_tokens"] = r.get("timings", {}).get("prompt_n", 0)
+                if r["cut"]:
+                    out["code_reason"] = "no time left"
+                else:
+                    content = r["content"]
             else:
                 out["code_reason"] = "no time left"
-        else:
-            out["code_reason"] = "no text options"
+        except Exception as error:  # noqa: BLE001 - no program: the letter question below still answers
+            out["code_reason"] = f"generation: {type(error).__name__}"
+    else:
+        out["code_reason"] = "no text options"
+    try:
         lp = letter_logprobs(math_prompt(problem, "\nAnswer with the letter of the correct option only.",
                                          "The answer is "),
                              timeout=max(deadline + 7.0 - time.perf_counter(), 2.0), url=url)
