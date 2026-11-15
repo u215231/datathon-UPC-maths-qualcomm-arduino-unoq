@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Read one picture of a problem with RapidOCR, and print {"text", "options"} as JSON.
+"""Read one picture of a problem, and print {"text", "options"} as JSON.
+
+Tesseract first, when it is installed: on printed problems it keeps every space and reads Catalan
+accents (the same call as a desktop "copy text from the screen" tool). RapidOCR is the fallback.
 
     python web3/read_picture.py photo.jpg
 
@@ -12,17 +15,37 @@ import json
 import os
 import sys
 
-import cv2
-from rapidocr_onnxruntime import RapidOCR
+import re
+import shutil
+import subprocess
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "m3kang"))
-from image_to_json import extract_text_and_options  # noqa: E402
+OPTIONS = re.compile(r"\(?A\)\s*(.+?)\s+\(?B\)\s*(.+?)\s+\(?C\)\s*(.+?)\s+\(?D\)\s*(.+?)\s+\(?E\)\s*(.+?)\s*$", re.S)
+
+
+def with_tesseract(path):
+    """(text, options) from Tesseract, or None when it isn't installed or finds no five options."""
+    if not shutil.which("tesseract"):
+        return None
+    langs = subprocess.run(["tesseract", "--list-langs"], capture_output=True, text=True).stdout.split()
+    lang = "+".join(l for l in ("eng", "cat", "spa") if l in langs) or "eng"
+    try:
+        run = subprocess.run(["tesseract", path, "stdout", "--oem", "1", "--psm", "6", "-l", lang, "--dpi", "300",
+                              "-c", "preserve_interword_spaces=1"], capture_output=True, text=True, timeout=60)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    found = OPTIONS.search(run.stdout.strip())
+    if run.returncode != 0 or not found:
+        return None
+    text = " ".join(run.stdout.strip()[:found.start()].split())
+    options = {letter: " ".join(value.split()) for letter, value in zip("ABCDE", found.groups())}
+    return (text, options) if text and all(options.values()) else None
 
 WIDTHS = (0, 1600, 2200)  # 0 = as it is; the M3Kang pictures are 1600 pixels wide
 MARGIN = 0.25             # of the height: letters at the very edge are missed
 
 
 def sized(image, width):
+    import cv2
     if width <= image.shape[1]:
         return None if width else image
     scale = width / image.shape[1]
@@ -32,6 +55,14 @@ def sized(image, width):
 
 
 def main():
+    read = with_tesseract(sys.argv[1])
+    if read:
+        print(json.dumps({"text": read[0], "options": read[1], "reader": "tesseract"}, ensure_ascii=False))
+        return
+    import cv2
+    from rapidocr_onnxruntime import RapidOCR
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "m3kang"))
+    from image_to_json import extract_text_and_options
     image = cv2.imread(sys.argv[1])
     if image is None:
         sys.exit("can't open the picture")

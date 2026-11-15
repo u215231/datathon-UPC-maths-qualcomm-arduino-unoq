@@ -21,6 +21,7 @@ import json
 import mimetypes
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -226,8 +227,8 @@ def ocr_ready():
     global _ocr_ready
     if _ocr_ready is None:
         try:
-            _ocr_ready = os.path.exists(OCR_SCRIPT) and subprocess.run(
-                [OCR_PYTHON, "-c", "import rapidocr_onnxruntime"], capture_output=True, timeout=60).returncode == 0
+            _ocr_ready = os.path.exists(OCR_SCRIPT) and (bool(shutil.which("tesseract")) or subprocess.run(
+                [OCR_PYTHON, "-c", "import rapidocr_onnxruntime"], capture_output=True, timeout=60).returncode == 0)
         except (OSError, subprocess.TimeoutExpired):
             _ocr_ready = False
     return _ocr_ready
