@@ -27,6 +27,8 @@ from .config import CONFIG
 from .llm import format_problem
 
 URL = f"http://127.0.0.1:{CONFIG['LLM_PORT']}"
+# Seconds the background solve may write its program for. The board writes ~5.7 tokens/s, so 40 s is ~230 tokens.
+SOLVE_SECONDS = float(CONFIG.get("TEACH_SOLVE_SECONDS", "40"))
 NAMES = {"eng": "English", "cat": "Catalan"}
 
 # --- 2. Strategy hints -----------------------------------------------------------------------------------------
@@ -146,7 +148,8 @@ def leaks(sentence, problem, extra_values=()):
 class Lesson:
     """One problem being taught. Starts solving in the background as soon as it's created."""
 
-    def __init__(self, problem, url=URL, budget_s=40.0):
+    def __init__(self, problem, url=URL, budget_s=None):
+        budget_s = SOLVE_SECONDS if budget_s is None else budget_s
         self.problem, self.url = problem, url
         self.program, self.value, self.letter, self.reason = "", None, None, "solving"
         self.done = threading.Event()
@@ -237,7 +240,7 @@ def _stream(url, prompt, max_tokens, start_text, timeout):
         yield buffer.strip()
 
 
-def stream_hint(problem, level, lesson=None, wait_s=45.0, timeout=60):
+def stream_hint(problem, level, lesson=None, wait_s=None, timeout=60):
     """Yield (source, sentence) pairs for hint level 1-3. source is 'strategy' or 'board'."""
     level = min(max(int(level), 1), 3)
     plan = strategy(problem)
@@ -247,7 +250,7 @@ def stream_hint(problem, level, lesson=None, wait_s=45.0, timeout=60):
         yield "strategy", plan[0]
         return
     if lesson is not None:
-        lesson.done.wait(timeout=wait_s)
+        lesson.done.wait(timeout=SOLVE_SECONDS + 20 if wait_s is None else wait_s)  # + reading the prompt
     if lesson is not None and lesson.done.is_set() and lesson.grounded:
         _, starts, max_tokens = GROUNDED[level]
         sent, keep = 0, {2: 1, 3: 2}[level]  # the first sentences are the reliable ones
