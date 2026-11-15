@@ -3,26 +3,27 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Cangur face</title>
+  <title>Owl eyes</title>
   <style>
-    body { font: 16px/1.5 system-ui, sans-serif; max-width: 640px; margin: 40px auto; padding: 0 16px; color: #1d2433; }
-    button { font: inherit; padding: 8px 14px; margin: 4px 4px 4px 0; border: 1px solid #dfe3ea; border-radius: 6px; background: #fff; cursor: pointer; }
-    code { background: #f5f7fa; padding: 1px 5px; border-radius: 4px; }
+    body { font: 16px/1.5 system-ui, sans-serif; max-width: 640px; margin: 40px auto; padding: 0 16px; color: #17363a; }
+    button { font: inherit; min-height: 44px; padding: 8px 16px; margin: 4px 4px 4px 0; border: 2px solid #eadfca; border-radius: 999px; background: #fff; cursor: pointer; }
+    code { background: #e2f4f4; padding: 1px 5px; border-radius: 4px; }
   </style>
 </head>
 <body>
-  <h1>🦘 Cangur face</h1>
-  <p>This app only draws on the board's LED matrix. The coach itself is on port 8000.</p>
-  <p>Test the pictures:</p>
+  <h1>Owl eyes</h1>
+  <p>This app only draws on the board's LED matrix. The web app itself is on port 8000.</p>
+  <p>Test the states:</p>
   <div id="buttons"></div>
   <p id="status"></p>
   <script>
-    const tests = [["tick", 0], ["cross", 0], ["level", 3], ["level", 7], ["hint", 1], ["hint", 2], ["letter", "C"], ["think", 0], ["face", 0]];
-    for (const [kind, value] of tests) {
+    const tests = [["eyes", "idle"], ["eyes", "sleeping"], ["eyes", "thinking"], ["eyes", "hint"], ["eyes", "correct"],
+      ["eyes", "wrong"], ["eyes", "listening"], ["eyes", "boot"], ["led", "letter", "C"], ["led", "tick"], ["led", "cross"]];
+    for (const [route, kind, value] of tests) {
       const button = document.createElement("button");
-      button.textContent = kind + (value ? " " + value : "");
+      button.textContent = (route === "led" ? "led " : "") + kind + (value ? " " + value : "");
       button.onclick = async () => {
-        const result = await (await fetch(`/led/${kind}/${value}`)).json();
+        const result = await (await fetch(`/${route}/${kind}/${value || 0}`)).json();
         document.querySelector("#status").textContent = JSON.stringify(result);
       };
       document.querySelector("#buttons").append(button);

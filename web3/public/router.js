@@ -2,44 +2,20 @@
    swaps it inside #app. The header, the footer and the browser history stay
    alive, so moving between sections never reloads the whole page. */
 (function () {
+  const page = (key, title, js = true) => ({
+    key, title: `TIC'S FRIEND — ${title}`, fragment: `/pages/${key}.html`, css: `/pages/${key}.css`,
+    js: js ? `/pages/${key}.js` : undefined,
+  });
   const routes = {
-    "/": {
-      key: "home",
-      title: "TIC'S FRIEND — Home",
-      fragment: "/pages/home.html",
-      css: "/pages/home.css",
-    },
-    "/coach": {
-      key: "coach",
-      title: "TIC'S FRIEND — Coach",
-      fragment: "/pages/coach.html",
-      css: "/pages/coach.css",
-      js: "/pages/coach.js",
-    },
-    "/agent": {
-      key: "solver",
-      title: "TIC'S FRIEND — Agent",
-      fragment: "/pages/solver.html",
-      css: "/pages/solver.css",
-      js: "/pages/solver.js",
-    },
-    "/uploader": {
-      key: "uploader",
-      title: "TIC'S FRIEND — Uploader",
-      fragment: "/pages/uploader.html",
-      css: "/pages/uploader.css",
-      js: "/pages/uploader.js",
-    },
-    "/analytics": {
-      key: "analytics",
-      title: "TIC'S FRIEND — Analytics",
-      fragment: "/pages/analytics.html",
-      css: "/pages/analytics.css",
-      js: "/pages/analytics.js",
-    },
+    "/": page("home", "Home"),
+    "/teach": page("teach", "Teach"),
+    "/reason": page("reason", "Reason"),
+    "/stats": page("stats", "Stats"),
   };
 
-  const aliases = { "/home": "/", "/solver": "/agent", "/teach": "/coach" };
+  // The names the earlier versions of the app used
+  const aliases = { "/home": "/", "/coach": "/teach", "/solver": "/reason", "/agent": "/reason",
+    "/uploader": "/reason", "/analytics": "/stats" };
 
   const app = document.getElementById("app");
   if (!app) return;

@@ -85,6 +85,8 @@ def make_handler(trainer, bank, review=False):
                 return self.page(os.path.join(HERE, "public", "review.html"))
             if review and url.path == "/api/hints":
                 return self.send(200, bank.all_hints())
+            if url.path == "/api/grounded":
+                return self.call(trainer.grounded, params.get("name", ""), params.get("id", ""))
             if url.path == "/api/progress":
                 return self.call(trainer.progress, params.get("name", ""))
             return self.send(404, {"error": "not found"})

@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
-"""One web app for the team, served by the board: web2's shell, web1's Agent and Uploader, and the Coach.
+"""The team's web app, served by the board: Teach (the coach), Reason (the solver) and Stats.
 
     python3 coach/build_bank.py            # once
     python3 web3/server.py --host 0.0.0.0  # then open http://<board-ip>:8000
 
 Standard library only: the board has no Node.
 
-- The Coach's routes are the ones of coach/server.py, under /api/coach/.
-- The Agent's and the Uploader's routes have the shapes of web1/server.js. "Ask the model"
-  runs machine/predict_one.py against the llama-server that is already running (LLM_PORT in
-  config.env), so nothing starts a second model.
-- Reading a picture needs RapidOCR (web3/read_picture.py). Where it isn't installed, the
-  Uploader says so, and the pasted-text route still works.
-- "Save" appends to data/uploaded.jsonl. It never touches val.jsonl, the evaluation set.
+- Teach: the routes of coach/server.py, under /api/coach/. While a student reads a problem, a
+  background thread writes hints grounded in the board's own solution (coach/grounded.py).
+- Reason: /api/reason/solve runs copilot.pipeline.solve, the function predict.py calls, so the page
+  shows what the graded run does. A problem comes from the practice set, from typed text, or from a
+  picture (RapidOCR, m3kang/image_to_json.py; where it isn't installed the page says so).
+- The owl: /api/eyes tells the LED matrix which eyes to show (coach/applab, or owl_eyes inside an
+  App Lab app). Without either, the page's own owl still follows along.
+- The model has one slot: Reason pauses the background hints, and only one solve runs at a time.
 """
 import argparse
 import base64
-import datetime
 import json
 import mimetypes
 import os
@@ -26,27 +26,28 @@ import sys
 import tempfile
 import threading
 import time
+import datetime
 import urllib.parse
 import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
 
+from copilot import pipeline, reason  # noqa: E402
 from copilot.config import CONFIG, ROOT  # noqa: E402
 from coach.coach import ask_model  # noqa: E402
 from coach.core import Bank, Trainer  # noqa: E402
-from coach.server import make_handler as coach_handler, make_led  # noqa: E402
+from coach.grounded import Grounder  # noqa: E402
+from coach.server import make_handler as coach_handler  # noqa: E402
 from http.server import ThreadingHTTPServer  # noqa: E402
 
 ROOT = str(ROOT)
 PUBLIC = os.path.join(HERE, "public")
-SHELL_ROUTES = {"/", "/home", "/coach", "/teach", "/solver", "/agent", "/uploader", "/analytics"}
-VARIANTS = ("letter", "cot", "pot", "official")
-UPLOADER_ROUTES = ("/api/upload-ocr", "/api/upload-solve", "/api/structure-text", "/api/solve-json",
-                   "/api/save-problem")
+SHELL_ROUTES = {"/", "/home", "/teach", "/coach", "/reason", "/solver", "/agent", "/uploader", "/stats", "/analytics"}
 LLM = f"http://127.0.0.1:{CONFIG['LLM_PORT']}"
 LETTERS = "ABCDE"
 MAX_BODY = 15 * 1024 * 1024
+TIME_LIMIT = float(CONFIG["TIME_LIMIT_SECONDS"])
 UPLOADED = os.path.join(ROOT, "data", "uploaded.jsonl")
 IMAGES = os.path.join(ROOT, "data", "images")
 OCR_SCRIPT = os.path.join(HERE, "read_picture.py")  # RapidOCR, with m3kang/image_to_json.py's parsing
@@ -54,6 +55,9 @@ OCR_SCRIPT = os.path.join(HERE, "read_picture.py")  # RapidOCR, with m3kang/imag
 OCR_PYTHON = os.environ.get("OCR_PYTHON") or next(
     (p for p in (os.path.join(ROOT, ".venv", "bin", "python"), os.path.join(ROOT, ".venv", "Scripts", "python.exe"))
      if os.path.exists(p)), sys.executable)
+EYE_STATES = ("idle", "boot", "thinking", "hint", "correct", "wrong", "listening", "sleeping")
+# What the Coach's trainer says (coach/core.py: led(kind, value)) as owl eyes
+EYES_FOR = {"tick": "correct", "cross": "wrong", "hint": "hint", "think": "thinking", "letter": "hint"}
 
 
 class Refused(Exception):
@@ -72,7 +76,7 @@ def model_name():
 
 
 def key_of(problem):
-    return f"{problem['id']}_{problem['language']}"
+    return f"{problem['id']}_{problem.get('language', 'eng')}"
 
 
 def read_jsonl(path):
@@ -82,40 +86,63 @@ def read_jsonl(path):
         return [json.loads(line) for line in f if line.strip()]
 
 
-class Problems:
-    """The problems the Agent lists: data/val.jsonl (or the first file that exists), then the uploaded ones."""
+# --- The owl's eyes on the LED matrix ---
+
+def make_eyes(led_base):
+    """Return eyes(state): tell the LED matrix, by whichever way exists. Never blocks, never raises.
+
+    1. The LED app (coach/applab) listens on led_base: GET /eyes/<state>/0.
+    2. Inside an App Lab app, owl_eyes/python/eyes_bridge.py talks to the sketch directly.
+    """
+    try:
+        sys.path.insert(0, os.path.join(ROOT, "owl_eyes", "python"))
+        from eyes_bridge import set_state as bridge  # type: ignore
+    except Exception:  # noqa: BLE001 - a laptop, or not inside App Lab
+        bridge = None
+    last = {"state": "idle"}
+
+    def send(state):
+        if bridge:
+            try:
+                bridge(state)
+            except Exception:  # noqa: BLE001 - the eyes must never break a lesson
+                pass
+        try:
+            urllib.request.urlopen(f"{led_base}/eyes/{state}/0", timeout=1).read()
+        except (OSError, ValueError):
+            pass  # the LED app is optional
+
+    def eyes(state):
+        if state in EYE_STATES:
+            last["state"] = state
+            threading.Thread(target=send, args=(state,), daemon=True).start()
+
+    eyes.last = last
+    return eyes
+
+
+# --- The problems of the Reason page ---
+
+class Practice:
+    """The organisers' practice set (data/demo/practice.jsonl) when it's there, else the sample problems."""
     def __init__(self):
-        self.path = next((p for p in (os.path.join(ROOT, "data", n) for n in
-                                      ("val.jsonl", "train.jsonl", "sample_problems.jsonl")) if os.path.exists(p)), "")
-        self.lock = threading.Lock()
-        self.load()
-
-    def load(self):
-        self.by_key = {}  # key -> (file, 1-based line, problem)
-        for path in (self.path, UPLOADED):
-            for n, problem in enumerate(read_jsonl(path) if path else [], 1):
-                self.by_key[key_of(problem)] = (path, n, problem)
-
-    def all(self):
-        return [entry[2] for entry in self.by_key.values()]
+        found = [(os.path.join(ROOT, "data", *parts), os.path.join(ROOT, "data", *images)) for parts, images in (
+            (("demo", "practice.jsonl"), ("demo", "images")), (("sample_problems.jsonl",), ("images",)))]
+        self.path, self.images = next(((p, i) for p, i in found if os.path.exists(p)), ("", ""))
+        self.by_key = {key_of(p): p for p in read_jsonl(self.path)} if self.path else {}
 
     def image(self, key):
-        path = os.path.join(IMAGES, key + ".png")
+        path = os.path.join(self.images, key + ".png")
         return path if key in self.by_key and os.path.exists(path) else ""
 
-    def public(self, key):
-        problem = {k: v for k, v in self.by_key[key][2].items() if k != "label"}
-        return {**problem, "key": key, "image": bool(self.image(key))}
+    def listing(self):
+        return [{"key": k, "id": p["id"], "language": p.get("language", "eng"), "level": p.get("level", 0),
+                 "image": bool(self.image(k)), "start": " ".join(str(p.get("text", "")).split())[:60]}
+                for k, p in self.by_key.items()]
 
-    def save(self, problem, image=b""):
-        with self.lock:
-            with open(UPLOADED, "a", encoding="utf-8") as f:
-                f.write(json.dumps(problem, ensure_ascii=False) + "\n")
-            if image:
-                os.makedirs(IMAGES, exist_ok=True)
-                with open(os.path.join(IMAGES, key_of(problem) + ".png"), "wb") as f:
-                    f.write(image)
-            self.load()
+    def public(self, key):
+        return {**{k: v for k, v in self.by_key[key].items() if k != "label"}, "key": key,
+                "image": bool(self.image(key))}
 
 
 # --- Text to a structured problem (web1's parser, in Python) ---
@@ -190,33 +217,6 @@ def structure(raw, given):
             "label": label_of(given.get("label"))}
 
 
-def structure_with_model(raw, given):
-    """The same, then the board's model cleans the text. If its JSON is no good, the parser's result stays."""
-    problem = structure(raw, given)
-    prompt = ("Extract the math problem statement and the five options A, B, C, D, E from the raw text below. "
-              "Fix obvious OCR spacing issues without changing the language or numbers. "
-              "Reply ONLY with valid JSON matching: "
-              '{"text": "...", "options": {"A": "...", "B": "...", "C": "...", "D": "...", "E": "..."}}.\n\n'
-              "Raw text:\n" + str(raw))
-    payload = {"messages": [{"role": "system", "content": "You convert raw math exam text into clean JSON."},
-                            {"role": "user", "content": prompt}], "temperature": 0, "max_tokens": 512}
-    request = urllib.request.Request(LLM + "/v1/chat/completions", data=json.dumps(payload).encode(),
-                                     headers={"Content-Type": "application/json"})
-    try:
-        with urllib.request.urlopen(request, timeout=170) as r:
-            content = json.load(r)["choices"][0]["message"]["content"]
-        cleaned = json.loads(re.search(r"\{[\s\S]*\}", content).group(0))
-    except (OSError, ValueError, KeyError, IndexError, AttributeError):
-        return {"problem": problem, "method": "parser (the model's reply wasn't valid JSON)"}
-    if isinstance(cleaned.get("text"), str) and cleaned["text"].strip():
-        problem["text"] = cleaned["text"].strip()
-    options = cleaned.get("options") if isinstance(cleaned.get("options"), dict) else {}
-    options = {l: str(options[l]).strip() for l in LETTERS if str(options.get(l, "")).strip()}
-    if len(options) == 5:
-        problem["options"], problem["text_only"] = options, True
-    return {"problem": problem, "method": f"ai ({model_name().replace('.gguf', '') or 'model'})"}
-
-
 # --- A picture to a structured problem (m3kang/image_to_json.py, RapidOCR) ---
 
 _ocr_ready = None
@@ -248,7 +248,7 @@ def ocr(body):
     """Read an uploaded picture. A file name like lvl-0_2026_1_eng.png gives the id, level, year and language."""
     if not ocr_ready():
         raise Refused(501, "This device can't read pictures: RapidOCR isn't installed here. "
-                           "Paste the problem's text in step 2 instead.")
+                           "Type or paste the problem's text instead.")
     image, ext = decode_image(body.get("image_base64"), str(body.get("filename") or ""))
     stem = os.path.splitext(os.path.basename(str(body.get("filename") or "uploaded.png")))[0]
     named = re.match(r"(lvl-(\d+)_(\d{4})_([^_]+))_([a-z]{2,3})$", stem, re.I)
@@ -279,65 +279,84 @@ def ocr(body):
     return {"problem": problem, "rawText": "\n".join(part for part in (text, option_line) if part)}
 
 
-# --- Ask the model (machine/predict_one.py, the same script web1 runs) ---
+# --- Reason: the graded pipeline, one problem at a time ---
 
-def prompt_of(problem):
-    options = problem.get("options") or {}
-    lines = [f"{l}) {options[l]}" for l in LETTERS if options.get(l) not in (None, "")]
-    return problem["text"] + ("\n\n" + "\n".join(lines) if lines else "")
+class Solver:
+    """Runs copilot.pipeline.solve in a thread, so the page can show a countdown while it works."""
+    def __init__(self, grounder, eyes):
+        self.grounder, self.eyes = grounder, eyes
+        self.busy = threading.Lock()  # the board's model has one slot
+        self.jobs = {}
+        self.count = 0
+        self.reply = ""  # what the model wrote for the job that holds `busy`
+        self.thread = None
+        run_program = reason.run_program
+
+        def recording(reply, *args, **kwargs):  # pipeline.solve doesn't return the program: keep it here
+            if threading.get_ident() == self.thread:  # not the background hints' program
+                self.reply = reply
+            return run_program(reply, *args, **kwargs)
+        reason.run_program = recording
+
+    def start(self, problem):
+        if self.busy.locked():
+            raise Refused(429, "The owl is already solving a problem. Wait for it to finish.")
+        self.count += 1
+        job = {"id": f"job{self.count}", "state": "waiting", "problem": problem, "started": None}
+        if len(self.jobs) > 20:
+            self.jobs.clear()
+        self.jobs[job["id"]] = job
+        threading.Thread(target=self.run, args=(job,), daemon=True).start()
+        return job
+
+    def run(self, job):
+        problem = job["problem"]
+        with self.busy:
+            self.eyes("thinking")
+            if self.grounder:
+                self.grounder.pause()  # the background hints give the model back
+            try:
+                self.reply, self.thread = "", threading.get_ident()
+                job.update(state="solving", started=time.time())
+                me = threading.get_ident()
+                reason.ON_TEXT = lambda text: job.update(writing=text) if threading.get_ident() == me else None
+                result = pipeline.solve({k: v for k, v in problem.items() if k != "label"})
+                found = re.search(r"```(?:python|py)?\s*\n(.*?)(?:```|$)", self.reply, flags=re.S)
+                program = (found.group(1) if found else self.reply).strip()
+                lp = result.get("lp") or {}
+                top = max(lp.values()) if lp else 0.0
+                weights = {l: 2.718281828 ** (lp[l] - top) for l in LETTERS if l in lp}
+                total = sum(weights.values()) or 1.0
+                label = label_of(problem.get("label"))
+                job["result"] = {
+                    "answer": result.get("answer"), "how": result.get("how", "letter"),
+                    "status": result.get("status", "ok"), "seconds": result.get("seconds"),
+                    "program": program, "code_value": result.get("code_value"),
+                    "code_reason": result.get("code_reason", ""),
+                    "probabilities": {l: round(w / total, 3) for l, w in weights.items()},
+                    "letter_guess": max(lp, key=lp.get) if lp else None,
+                    "label": label, "correct": (result.get("answer") == label) if label else None,
+                    "strategy": pipeline.STRATEGY, "limit": TIME_LIMIT}
+                self.eyes("correct" if job["result"]["correct"] else "hint")
+            except Exception as error:  # noqa: BLE001 - the page shows it
+                job["error"] = f"{type(error).__name__}: {error}"
+                self.eyes("idle")
+            finally:
+                reason.ON_TEXT = None
+                job["state"] = "done"
+                if self.grounder:
+                    self.grounder.resume()
+
+    def public(self, job):
+        shown = {"id": job["id"], "state": job["state"], "limit": TIME_LIMIT,
+                 "elapsed": round(time.time() - job["started"], 1) if job["started"] else 0.0}
+        for field in ("result", "error", "writing"):
+            if field in job:
+                shown[field] = job[field]
+        return shown
 
 
-def predict(path, index, problem, body, default_tokens):
-    """Run predict_one.py on line `index` of `path` and shape the result like web1's buildPredictionResponse."""
-    variant = body.get("variant") if body.get("variant") in VARIANTS else "cot"
-    tokens = max(1, min(2048, number(body.get("max_tokens"), default_tokens)))
-    script = os.path.join(ROOT, "machine", "predict_one.py")
-    out = tempfile.NamedTemporaryFile(suffix=".jsonl", delete=False)
-    out.close()
-    command = [sys.executable, script, "--input", path, "--index", str(index), "--variant", variant,
-               "--max-tokens", str(tokens), "--port", str(CONFIG["LLM_PORT"]), "--out", out.name]
-    shown = "python3 machine/predict_one.py " + " ".join(command[2:-2])
-    started = time.time()
-    try:
-        run = subprocess.run(command, cwd=os.path.dirname(script), capture_output=True, text=True, timeout=150)
-        rows = read_jsonl(out.name)
-    except subprocess.TimeoutExpired:
-        raise Refused(500, "The model took more than 150 seconds.", command=shown)
-    finally:
-        os.unlink(out.name)
-    if run.returncode != 0 or not rows:
-        raise Refused(500, f"predict_one.py ended with code {run.returncode}",
-                      raw_output=(run.stdout + "\n" + run.stderr).strip()[-3000:], command=shown)
-    rec = rows[-1]
-    lp = rec.get("lp")
-    answer = max(LETTERS, key=lambda l: lp.get(l, float("-inf"))) if lp else rec.get("answer")
-    text = [rec.get("thought"), f"Expression: {rec['expr']}" if rec.get("expr") else "",
-            f"Value: {rec['value']}" if rec.get("value") is not None else "",
-            f"Match: {rec['match']}" if rec.get("match") else "",
-            rec.get("content") if not rec.get("thought") else ""]
-    label = label_of(problem.get("label"))
-    return {"answer": answer, "thought": "\n".join(str(part) for part in text if part),
-            "model": model_name().replace(".gguf", ""), "variant": variant, "status": rec.get("status", "ok"),
-            "seconds": round(time.time() - started, 1),
-            "prompt_tokens": rec.get("read_tokens", rec.get("prompt_tokens", 0)),
-            "written_tokens": rec.get("written_tokens", 0), "lp": lp, "has_label": bool(label),
-            "correct": answer == label if label else None, "label": label, "prompt": prompt_of(problem),
-            "command": shown, "examples": []}
-
-
-def predict_new(problem, body):
-    """The same for a problem that isn't in a file yet: write it to a file of one line."""
-    with tempfile.NamedTemporaryFile("w", suffix=".jsonl", delete=False, encoding="utf-8") as f:
-        f.write(json.dumps(problem, ensure_ascii=False) + "\n")
-    try:
-        return predict(f.name, 1, problem, body, 150)
-    finally:
-        os.unlink(f.name)
-
-
-def make_handler(trainer, bank, problems, review):
-    busy = threading.Lock()  # the board's model has one slot: one prediction at a time
-
+def make_handler(trainer, bank, practice, solver, eyes, review):
     class Handler(coach_handler(trainer, bank, review=review)):
         def static(self, path):
             if path in SHELL_ROUTES:
@@ -346,7 +365,7 @@ def make_handler(trainer, bank, problems, review):
             if not full.startswith(os.path.realpath(PUBLIC) + os.sep) or not os.path.isfile(full):
                 return self.send(404, {"error": "not found"})
             kind = mimetypes.guess_type(full)[0] or "application/octet-stream"
-            if kind.startswith("text/") or kind.endswith("javascript"):
+            if kind.startswith("text/") or kind.endswith(("javascript", "json")):
                 kind += "; charset=utf-8"
             with open(full, "rb") as f:
                 return self.send(200, f.read(), kind)
@@ -360,24 +379,21 @@ def make_handler(trainer, bank, problems, review):
             if url.path in ("/review", "/api/hints"):  # the teacher's page, only with --review
                 return super().do_GET()
             if url.path == "/api/info":
-                name, items = model_name(), problems.all()
-                return self.send(200, {
-                    "count": len(items), "languages": sorted({p["language"] for p in items}),
-                    "levels": sorted({p["level"] for p in items}),
-                    "images": sum(1 for k in problems.by_key if problems.image(k)), "index": 0,
-                    "llm": bool(name), "models": [name] if name else [], "model": name,
-                    "embed": False, "vision": False, "time_limit": 60, "ocr": ocr_ready()})
-            if url.path == "/api/problems":
-                return self.send(200, [{"key": k, "id": p["id"], "language": p["language"], "level": p["level"],
-                                        "options": bool(p.get("options"))} for k, (_, _, p) in problems.by_key.items()])
-            if url.path == "/api/problem":
-                if params.get("key") not in problems.by_key:
+                name = model_name()
+                return self.send(200, {"llm": bool(name), "model": name.replace(".gguf", ""), "ocr": ocr_ready(),
+                                       "time_limit": TIME_LIMIT, "practice": len(practice.by_key),
+                                       "strategy": pipeline.STRATEGY, "eyes": eyes.last["state"]})
+            if url.path == "/api/reason/problems":
+                return self.send(200, practice.listing())
+            if url.path == "/api/reason/problem":
+                if params.get("key") not in practice.by_key:
                     return self.send(404, {"error": "unknown problem"})
-                return self.send(200, problems.public(params["key"]))
-            if url.path == "/api/similar":
-                return self.send(200, [])
-            if url.path.startswith("/image/"):
-                image = problems.image(urllib.parse.unquote(url.path[len("/image/"):]))
+                return self.send(200, practice.public(params["key"]))
+            if url.path == "/api/reason/job":
+                job = solver.jobs.get(params.get("id"))
+                return self.send(200, solver.public(job)) if job else self.send(404, {"error": "unknown job"})
+            if url.path.startswith("/api/reason/image/"):
+                image = practice.image(urllib.parse.unquote(url.path[len("/api/reason/image/"):]))
                 if not image:
                     return self.send(404, {"error": "image not found"})
                 with open(image, "rb") as f:
@@ -406,59 +422,32 @@ def make_handler(trainer, bank, problems, review):
             except Refused as refused:
                 return self.send(refused.code, {"error": str(refused), **refused.extra})
 
-        def with_model(self, function, *args):
-            if not busy.acquire(blocking=False):
-                raise Refused(429, "The board is already working on a problem. Wait for it to finish.")
-            try:
-                return function(*args)
-            finally:
-                busy.release()
-
         def route(self, body):
-            entry = problems.by_key.get(body.get("key"))
-            if self.path == "/api/check":
-                if not entry or body.get("choice") not in tuple(LETTERS):
-                    raise Refused(400, "bad request")
-                return {"correct": body["choice"] == entry[2].get("label"), "label": entry[2].get("label", "")}
-            if self.path == "/api/ask":
-                if not entry:
-                    raise Refused(404, "unknown problem")
-                return self.with_model(predict, entry[0], entry[1], entry[2], body, 120)
+            if self.path == "/api/eyes":
+                if body.get("state") not in EYE_STATES:
+                    raise Refused(400, "unknown state")
+                eyes(body["state"])
+                return {"ok": True}
+            if self.path == "/api/reason/solve":
+                if body.get("key") in practice.by_key:
+                    problem = practice.by_key[body["key"]]
+                else:
+                    given = body.get("problem") if isinstance(body.get("problem"), dict) else {}
+                    if not str(given.get("text") or "").strip():
+                        raise Refused(400, "Write the problem first.")
+                    problem = normalize(given)
+                    if len(problem["options"]) < 5:  # the options may be inside the text: "A) 3  B) 4 ..."
+                        split = structure(problem["text"], {"language": problem["language"]})
+                        if len(split["options"]) == 5:
+                            problem.update(text=split["text"], options=split["options"], text_only=True)
+                job = solver.start(problem)
+                return {**solver.public(job), "problem": {k: v for k, v in problem.items() if k != "label"}}
             if self.path == "/api/structure-text":
                 if not str(body.get("raw_text") or "").strip():
                     raise Refused(400, "Paste the problem's text first.")
-                if body.get("use_ai"):
-                    return self.with_model(structure_with_model, body["raw_text"], body)
                 return {"problem": structure(body["raw_text"], body), "method": "parser"}
-            if self.path == "/api/solve-json":
-                given = body.get("problem")
-                if not isinstance(given, dict) or not str(given.get("text") or "").strip():
-                    raise Refused(400, "The JSON needs at least the field 'text'.")
-                problem = normalize(given)
-                return {"problem": problem, "prediction": self.with_model(predict_new, problem, body)}
             if self.path == "/api/upload-ocr":
                 return ocr(body)
-            if self.path == "/api/upload-solve":
-                read = ocr(body)
-                try:
-                    prediction = self.with_model(predict_new, read["problem"], body)
-                except Refused as refused:  # keep what OCR read, so the page can still show it
-                    refused.extra.update(problem=read["problem"], raw_text=read["rawText"])
-                    raise
-                return {"problem": read["problem"], "raw_text": read["rawText"], "prediction": prediction}
-            if self.path == "/api/save-problem":
-                given = body.get("problem")
-                if not isinstance(given, dict) or not given.get("id") or not str(given.get("text") or "").strip():
-                    raise Refused(400, "The JSON needs 'id' and 'text'.")
-                problem = normalize(given)
-                if not re.fullmatch(r"[A-Za-z0-9_.-]{1,60}", key_of(problem)):
-                    raise Refused(400, "Use only letters, digits, '-', '_' and '.' in the id and the language.")
-                entry = problems.by_key.get(key_of(problem))
-                if entry and entry[0] != UPLOADED:
-                    raise Refused(400, "That id is a problem of the dataset. Choose another id.")
-                image = decode_image(body["image_base64"])[0] if body.get("image_base64") else b""
-                problems.save(problem, image)
-                return {"saved": True, "key": key_of(problem), "total": len(problems.by_key)}
             raise Refused(404, "not found")
 
     return Handler
@@ -470,23 +459,40 @@ def main():
     p.add_argument("--profile", default="data/teach_profile.db", help="the students' progress, kept on the board")
     p.add_argument("--host", default="127.0.0.1", help="use 0.0.0.0 to open it to your network")
     p.add_argument("--port", type=int, default=8000)
-    p.add_argument("--led", default="http://127.0.0.1:7000", help="the LED app's address")
-    p.add_argument("--no-coach", action="store_true", help="turn off 'ask the coach'")
+    p.add_argument("--led", default="http://127.0.0.1:7000", help="the LED app's address (coach/applab)")
+    p.add_argument("--no-coach", action="store_true", help="turn off 'ask the owl'")
+    p.add_argument("--no-grounded", action="store_true",
+                   help="don't write hints from the board's own solution in the background")
+    p.add_argument("--prefer-grounded", action="store_true",
+                   help="choose first the problems that already have a grounded hint (coach/warm_grounded.py)")
     p.add_argument("--review", action="store_true", help="also serve /review (it shows the answers)")
     args = p.parse_args()
     os.chdir(ROOT)
     if not os.path.exists(args.bank):
         sys.exit(f"{args.bank} not found. Build it first: python3 coach/build_bank.py")
 
+    eyes = make_eyes(args.led)
+
+    def led(kind, value=0):  # the trainer's events, as owl eyes
+        if kind in EYES_FOR:
+            eyes(EYES_FOR[kind])
+
     bank = Bank(args.bank)
-    trainer = Trainer(bank, args.profile, led=make_led(args.led), coach=None if args.no_coach else ask_model)
-    problems = Problems()
-    print(f"Coach: {len(bank.level)} problems, {bank.hint_count()} model hints. "
-          f"Agent: {len(problems.by_key)} problems from {problems.path or 'nowhere'}. "
-          f"Model {'up' if model_name() else 'DOWN'} on port {CONFIG['LLM_PORT']}. "
+    grounder = None if args.no_grounded else Grounder()
+    trainer = Trainer(bank, args.profile, led=led, coach=None if args.no_coach else ask_model, grounder=grounder,
+                      prefer_grounded=args.prefer_grounded)
+    practice = Practice()
+    solver = Solver(grounder, eyes)
+    print(f"Teach: {len(bank.level)} problems, {bank.hint_count()} model hints, grounded hints "
+          f"{'on' if grounder else 'off'}. Reason: {len(practice.by_key)} practice problems, strategy "
+          f"'{pipeline.STRATEGY}'. Model {'up' if model_name() else 'DOWN'} on port {CONFIG['LLM_PORT']}. "
           f"OCR {'ready' if ocr_ready() else 'not installed'}.")
     print(f"Open http://{args.host}:{args.port} (Ctrl+C to stop)", flush=True)
-    ThreadingHTTPServer((args.host, args.port), make_handler(trainer, bank, problems, args.review)).serve_forever()
+    eyes("idle")
+    if pipeline.STRATEGY == "math":  # the maths model is not a service: start it now, so the first solve does not wait
+        threading.Thread(target=reason.start_math_server, daemon=True).start()
+    ThreadingHTTPServer((args.host, args.port),
+                        make_handler(trainer, bank, practice, solver, eyes, args.review)).serve_forever()
 
 
 if __name__ == "__main__":

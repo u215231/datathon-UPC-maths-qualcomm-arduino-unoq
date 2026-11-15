@@ -12,6 +12,8 @@ import sqlite3
 import threading
 import time
 
+from copilot.teach import strategy
+
 LETTERS = "ABCDE"
 LEVELS = range(8)
 TWIN = 0.95  # above this similarity it's the same problem at another level, not a hint
@@ -30,6 +32,12 @@ TOPICS = {
     "measures": r"\bkm\b|speed|hour|minute|second|clock|euro|cent|price|cost|\bage\b|years old|kg\b|litre|liter|weigh",
 }
 
+# The second rung: advice that fits any problem. (The per-topic tips below come from keyword rules, which put
+# about four problems in ten under the wrong topic, so they are no longer shown as "the method".)
+START = {
+    "eng": "Write down what you know and what is asked. Then try a smaller version of the problem, or test the options one by one.",
+    "cat": "Escriu què saps i què et demanen. Després prova una versió més petita del problema, o comprova les opcions una per una.",
+}
 TIPS = {
     "geometry": {
         "eng": "Draw the figure and write on it every length or angle you know. Which ones are missing?",
@@ -256,8 +264,10 @@ RUNGS = ("similar", "method", "model", "solution")
 class Trainer:
     """Turns answers into the next step. One instance serves every student."""
 
-    def __init__(self, bank, profile_path, led=None, coach=None, seed=42):
+    def __init__(self, bank, profile_path, led=None, coach=None, seed=42, grounder=None, prefer_grounded=False):
         self.bank = bank
+        self.grounder = grounder  # coach/grounded.py: hints from the board's own solution, or None
+        self.prefer_grounded = prefer_grounded and grounder is not None  # choose those problems first
         self.led = led or (lambda *_args: None)
         self.coach = coach  # coach(problem, question) -> text, from coach/coach.py; None turns it off
         self.coach_busy = threading.Lock()  # the board's model answers one request at a time
@@ -284,10 +294,12 @@ class Trainer:
         shown = self.bank.public(pid, language)
         if warmup_for is None:
             self.open[name] = state
-            # The rungs this problem has, so the page can warn before the last one
-            shown["ladder"] = [rung for rung in RUNGS if rung in ("method", "solution")
-                               or (rung == "similar" and self.bank.easier(pid, language, seen=self._seen(name) | {pid}))
-                               or (rung == "model" and self.bank.model_hint(pid, language))]
+            # The rungs this problem has, so the page can warn before the last one.
+            # The "model" rung always has something to say: see hint().
+            shown["ladder"] = [rung for rung in RUNGS if rung != "similar"
+                               or self.bank.easier(pid, language, seen=self._seen(name) | {pid})]
+            if self.grounder:  # the board starts thinking about this problem while the student reads
+                self.grounder.open({**self.bank.problems[(pid, language)], "id": pid, "language": language})
         else:
             self.open[name]["warmup"] = state
         return shown
@@ -307,6 +319,16 @@ class Trainer:
             len(state["wrong"]), state["rung"] + state["asks"], int(state["warmup_for"] is not None), time.time()))
         self.db.commit()
 
+    def _pick(self, language, level, seen, **how):
+        """bank.pick, trying first the problems that already have a grounded hint (if asked to)."""
+        if self.prefer_grounded:
+            without = {pid for pid, lvl in self.bank.level.items()
+                       if lvl == level and self.grounder.get(pid, language)["status"] != "ready"}
+            pid = self.bank.pick(language, level, seen | without, **how)
+            if pid:
+                return pid
+        return self.bank.pick(language, level, seen, **how)
+
     # -- the API --
 
     def start(self, name, language, level):
@@ -317,7 +339,7 @@ class Trainer:
             self.db.execute("INSERT INTO students VALUES (?, ?, ?) ON CONFLICT(name) DO UPDATE SET "
                             "language = excluded.language, level = excluded.level", (name, language, level))
             self.db.commit()
-            pid = self.bank.pick(language, level, self._seen(name), rng=self.rng)
+            pid = self._pick(language, level, self._seen(name), rng=self.rng)
             if pid is None:
                 raise ValueError("no problems left at this level")
             self.led("level", level)
@@ -337,8 +359,12 @@ class Trainer:
             else:
                 state["wrong"].append(choice)
             self.led("tick" if correct else "cross")
-            return {"correct": correct, "warmup": state["warmup_for"] is not None,
-                    "wrong": state["wrong"], "rungs_used": state["rung"]}
+            reply = {"correct": correct, "warmup": state["warmup_for"] is not None,
+                     "wrong": state["wrong"], "rungs_used": state["rung"]}
+            if not correct:  # a hand-written question to think about: always safe, and free
+                reply["nudge"] = strategy({**self.bank.problems[(pid, student["language"])],
+                                           "language": student["language"]})[0]
+            return reply
 
     def hint(self, name, pid):
         """Climb one rung of the ladder. Only the last rung gives the answer."""
@@ -365,12 +391,22 @@ class Trainer:
                     topic = self.bank.topic[pid]
                     self.led("hint", state["rung"])
                     return {"rung": state["rung"], "type": rung, "topic": TOPIC_NAMES[topic][language],
-                            "text": TIPS[topic][language]}
+                            "text": START[language]}
                 elif rung == "model":
+                    # Best first: the board's own solution put into words (checked against the answer key),
+                    # then the hint the model wrote ahead of time, then a hand-written first step.
+                    ready = self._grounded(pid, language)
+                    self.led("hint", state["rung"])
+                    if ready["text"]:
+                        return {"rung": state["rung"], "type": rung, "source": "board", "text": ready["text"],
+                                "thinking": ready["status"] == "thinking"}
                     text = self.bank.model_hint(pid, language)
                     if text:
-                        self.led("hint", state["rung"])
-                        return {"rung": state["rung"], "type": rung, "text": text}
+                        return {"rung": state["rung"], "type": rung, "source": "model", "text": text,
+                                "thinking": ready["status"] == "thinking"}
+                    plan = strategy({**problem, "language": language})
+                    return {"rung": state["rung"], "type": rung, "source": "strategy", "text": plan[2],
+                            "thinking": ready["status"] == "thinking"}
                 else:
                     if not state["solved"]:
                         self._record(name, state)
@@ -379,6 +415,19 @@ class Trainer:
                     return {"rung": state["rung"], "type": rung, "label": problem["label"],
                             "value": problem["options"][problem["label"]]}
             raise ValueError("no more hints")
+
+    def _grounded(self, pid, language):
+        found = self.grounder.get(pid, language) if self.grounder else {"status": "none", "method": "", "step": ""}
+        return {"status": found["status"], "text": " ".join(part for part in (found["method"], found["step"]) if part)}
+
+    def grounded(self, name, pid):
+        """Has the board finished its own idea for the open problem? The page asks while the owl thinks."""
+        with self.lock:
+            student = self._student(name)
+            state = self._state(name, pid)
+            if state["warmup_for"] is not None or state["rung"] < RUNGS.index("model") + 1:
+                raise ValueError("ask for the hint first")
+            return self._grounded(pid, student["language"])
 
     def ask(self, name, pid, question):
         """The student asks the board's model a question, live. About 20 seconds.
@@ -420,7 +469,7 @@ class Trainer:
             self.led("level", student["level"])
             if reason:
                 topic = self.bank.topic[pid]
-                return {"shown": "method", "replaced": True, "text": TIPS[topic][language],
+                return {"shown": "method", "replaced": True, "text": START[language],
                         "topic": TOPIC_NAMES[topic][language], "seconds": seconds}
             return {"shown": "model", "replaced": False, "text": reply, "seconds": seconds}
 
@@ -444,8 +493,8 @@ class Trainer:
             seen = self._seen(name)
             pid = None
             for candidate in sorted(LEVELS, key=lambda l: (abs(l - level), l)):
-                pid = (self.bank.pick(student["language"], candidate, seen, near=near, topic=topic, rng=self.rng)
-                       or self.bank.pick(student["language"], candidate, seen, near=near, rng=self.rng))
+                pid = (self._pick(student["language"], candidate, seen, near=near, topic=topic, rng=self.rng)
+                       or self._pick(student["language"], candidate, seen, near=near, rng=self.rng))
                 if pid:
                     level = candidate
                     break

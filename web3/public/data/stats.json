@@ -1,0 +1,97 @@
+{
+  "_comment": "Every number on the Stats page. Edit here only. Accuracies are correct answers out of 100 on the organisers' practice set (50 problems x English and Catalan). Chance is 20.",
+  "updated": "2026-11-15",
+  "set": {
+    "rows": 100,
+    "problems": 50,
+    "chance": 20
+  },
+  "bars": [
+    {
+      "id": "qwen2b",
+      "accuracy": 21,
+      "where": "board",
+      "en": "Bigger model → Qwen-2B",
+      "ca": "Model més gran → Qwen-2B"
+    },
+    {
+      "id": "baseline",
+      "accuracy": 22,
+      "where": "board",
+      "en": "Baseline",
+      "ca": "Base"
+    },
+    {
+      "id": "qwen4b",
+      "accuracy": 22,
+      "where": "board",
+      "en": "Bigger model → Qwen-4B",
+      "ca": "Model més gran → Qwen-4B",
+      "note_en": "too slow",
+      "note_ca": "massa lent"
+    },
+    {
+      "id": "wsp",
+      "accuracy": 22,
+      "where": "board",
+      "en": "Weight-space programming",
+      "ca": "Programació en l'espai de pesos"
+    },
+    {
+      "id": "think",
+      "accuracy": 25,
+      "where": "board",
+      "en": "Free thinking",
+      "ca": "Pensament lliure"
+    },
+    {
+      "id": "old_board",
+      "accuracy": 27,
+      "where": "board",
+      "en": "Small model + Python",
+      "ca": "Model petit + Python"
+    },
+    {
+      "id": "shipped_board",
+      "accuracy": 33,
+      "where": "board",
+      "shipped": true,
+      "en": "Uino",
+      "ca": "Uino"
+    },
+    {
+      "id": "shipped_laptop",
+      "accuracy": 43,
+      "where": "laptop",
+      "shipped": true,
+      "en": "Uino",
+      "ca": "Uino"
+    }
+  ],
+  "timing": {
+    "mean_s": 35,
+    "max_s": 46,
+    "over_limit": 0,
+    "limit_s": 60
+  },
+  "program_match": {
+    "board": [
+      19,
+      30
+    ],
+    "laptop": [
+      24,
+      32
+    ]
+  },
+  "finetune": {
+    "memorised": [
+      24,
+      24
+    ]
+  },
+  "right": [
+    33,
+    100
+  ]
+}

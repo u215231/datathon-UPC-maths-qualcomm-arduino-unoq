@@ -1,0 +1,64 @@
+<div class="page page-reason">
+  <div class="reason-layout">
+    <section class="panel ask-panel">
+      <h2 data-t="title"></h2>
+
+      <div class="drop" id="drop" tabindex="0" role="button">
+        <svg viewBox="0 0 64 48" aria-hidden="true"><rect x="4" y="6" width="56" height="38" /><circle cx="22" cy="20" r="5"/><path d="M10 40 L26 26 L36 34 L46 22 L58 36"/></svg>
+        <div><b data-t="drop_title"></b><span class="note" id="drop-note"></span></div>
+        <input type="file" id="file" accept="image/*" hidden>
+      </div>
+      <img class="shot hidden" id="shot" alt="">
+      <div class="notice hidden" id="ocr-note" role="status"></div>
+
+      <label class="field"><span data-t="text_label"></span>
+        <textarea id="text" rows="5" data-t-placeholder="text_ph"></textarea></label>
+      <div class="opts" id="opts"></div>
+
+      <div class="practice">
+        <label for="pick" data-t="pick_label"></label>
+        <div class="practice-row">
+          <select id="pick"></select>
+          <button class="secondary" id="random" type="button" data-t="random"></button>
+        </div>
+      </div>
+
+      <div class="go-row">
+        <button class="primary big" id="solve" data-t="solve"></button>
+        <button class="link" id="clear" type="button" data-t="clear"></button>
+      </div>
+      <div class="error" id="error" role="alert"></div>
+    </section>
+
+    <section class="panel stage" id="stage">
+      <div class="stage-top">
+        <div id="reason-owl"></div>
+        <div class="clock" id="clock">
+          <svg viewBox="0 0 120 120" aria-hidden="true">
+            <circle class="clock-track" cx="60" cy="60" r="52"/>
+            <circle class="clock-run" id="clock-run" cx="60" cy="60" r="52" pathLength="100"/>
+          </svg>
+          <div class="clock-num"><b id="clock-n">60</b><span data-t="seconds_left"></span></div>
+        </div>
+      </div>
+      <div class="owl-say" id="r-say" aria-live="polite"></div>
+
+      <div class="live hidden" id="live"><div class="live-title" id="live-title"></div><pre id="live-code"></pre></div>
+      <div class="result hidden" id="result">
+        <div class="answer-row">
+          <div class="letter" id="r-letter"></div>
+          <div>
+            <div class="answer-title" data-t="answer_is"></div>
+            <div class="answer-value" id="r-value"></div>
+            <div class="pill" id="r-time"></div>
+          </div>
+        </div>
+        <div class="key hidden" id="r-key"></div>
+        <h3 data-t="how_title"></h3>
+        <p id="r-how"></p>
+        <div class="probs" id="r-probs"></div>
+        <details id="r-program-box"><summary id="r-program-title"></summary><pre id="r-program"></pre></details>
+      </div>
+    </section>
+  </div>
+</div>
