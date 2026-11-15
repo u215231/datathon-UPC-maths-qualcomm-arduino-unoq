@@ -438,3 +438,6 @@ body.is-navigating #app { opacity: .5; transition: opacity .12s ease; }
 /* Square corners everywhere. The countdown on the Reason page stays a ring: it is a clock. */
 *, *::before, *::after { border-radius: 0 !important; }
 svg rect { rx: 0; ry: 0; }
+
+/* The logo files have white backgrounds: multiply lets the page's beige show through instead */
+.footer-logos img { mix-blend-mode: multiply; }
