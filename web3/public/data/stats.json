@@ -41,40 +41,47 @@
       "id": "python",
       "accuracy": 32,
       "where": "laptop",
-      "en": "Python program only",
-      "ca": "Només el programa Python"
+      "en": "Small model writes Python",
+      "ca": "El model petit escriu Python"
+    },
+    {
+      "id": "old_board",
+      "accuracy": 27,
+      "where": "board",
+      "en": "Small model: letter + Python",
+      "ca": "Model petit: lletra + Python"
     },
     {
       "id": "shipped_board",
-      "accuracy": 27,
+      "accuracy": 32,
       "where": "board",
       "shipped": true,
-      "en": "Uino: letter + Python",
-      "ca": "Uino: lletra + Python"
+      "en": "Uino: maths model trained to write short programs",
+      "ca": "Uino: model de mates entrenat per escriure programes curts"
     },
     {
       "id": "shipped_laptop",
-      "accuracy": 35,
+      "accuracy": 43,
       "where": "laptop",
       "shipped": true,
-      "en": "Uino: letter + Python",
-      "ca": "Uino: lletra + Python"
+      "en": "Uino: maths model trained to write short programs",
+      "ca": "Uino: model de mates entrenat per escriure programes curts"
     }
   ],
   "timing": {
-    "mean_s": 33,
+    "mean_s": 35,
     "max_s": 49,
     "over_limit": 0,
     "limit_s": 60
   },
   "program_match": {
     "board": [
-      5,
-      7
+      19,
+      30
     ],
     "laptop": [
-      11,
-      14
+      24,
+      32
     ]
   },
   "finetune": {
