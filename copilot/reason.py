@@ -90,6 +90,16 @@ def run_program(reply, timeout=3.0):
     src = (fence.group(1) if fence else reply).strip()
     if not src:
         return None, "empty"
+    try:
+        ast.parse(src)
+    except SyntaxError:  # small models often write "=" for "==" in a condition: try that one repair
+        fixed = re.sub(r"(?<![=!<>:+\-*/%])=(?!=)", "==", src)
+        fixed = "\n".join(f if re.search(r"\bif\b|\bwhile\b", f) else o for f, o in zip(fixed.split("\n"), src.split("\n")))
+        try:
+            ast.parse(fixed)
+            src = fixed
+        except SyntaxError:
+            pass
     if not is_safe(src):
         return None, "syntax or unsafe"
     env = {"PYTHONIOENCODING": "utf-8"}
@@ -277,6 +287,22 @@ def _complete(url, payload, until):
     return {"content": content, "timings": last.get("timings", {}), "cut": cut}
 
 
+# In M3Kang, when the five options are numbers, the correct one is the smallest only 9% of the time and the
+# largest 12% (the middle one 29%): wrong answers are written on both sides of the right one. The organisers'
+# practice set does not show it (it changes nothing there), so the weight is low. 0 turns it off.
+VALUE_RANK_PRIOR = (0.090, 0.229, 0.290, 0.273, 0.118)
+MIDDLE_PRIOR_WEIGHT = float(CONFIG.get("MIDDLE_VALUE_PRIOR", "1.0"))
+
+
+def with_value_prior(lp, options):
+    """Letter log-probabilities plus the prior on where the correct value sits among numeric options."""
+    values = {k: number(str(v)) for k, v in (options or {}).items()}
+    if MIDDLE_PRIOR_WEIGHT <= 0 or sorted(values) != list(LETTERS) or None in values.values() or len(set(values.values())) < 5:
+        return lp
+    order = sorted(values, key=values.get)
+    return {k: max(lp.get(k, -99.0), -20.0) + MIDDLE_PRIOR_WEIGHT * math.log(VALUE_RANK_PRIOR[order.index(k)]) for k in LETTERS}
+
+
 def solve_math(problem, deadline, url=MATH_URL):
     """The maths model writes a short program, then gives its letter probabilities. Same return value as
     solve_hybrid. The program is asked first; the letter question shares the problem text, which a plain
@@ -308,6 +334,7 @@ def solve_math(problem, deadline, url=MATH_URL):
         lp = letter_logprobs(math_prompt(problem, "\nAnswer with the letter of the correct option only.",
                                          "The answer is "),
                              timeout=max(deadline + 7.0 - time.perf_counter(), 2.0), url=url)
+        lp = with_value_prior(lp, problem.get("options"))
         out.update(lp=lp, answer=max(lp, key=lp.get))
     except Exception as error:  # noqa: BLE001 - the maths server is down or slow: the 0.8B route, if time allows
         if deadline - time.perf_counter() > 18:
