@@ -88,9 +88,9 @@ All Reason numbers are on the organisers' **practice set: 50 new problems × Eng
 | 0.8B thinks freely, cut at 50 s | 25 | 50 s |
 | 0.8B: letter + Python + balancing | 27 | mean 33 s, max 49 s |
 | Tuned maths model (Qwen2.5-Math 1.5B) + letter + balancing | 33 (32 on a first run) | mean 35 s, max 46 s |
-| **Uino, shipped: tuned code model (Qwen2.5-Coder 1.5B) + letter + balancing** | **46% on the first 52 problems** (the maths model: 31% on the same 52) | **mean 32 s, max 45 s** |
+| **Uino, shipped: tuned code model (Qwen2.5-Coder 1.5B) + letter + balancing** | **47** | **mean 33 s, max 52 s** |
 
-- The shipped code model was swapped in at the last hour: its full board run was not finished at hand-in, so its row is the first 52 problems (programs right 16 of 23). On a laptop, in the same 4-bit file, it scores 44 of 100 (programs right 28 of 35) against 38 for the maths model.
+- The shipped code model's program matched an option on 40 problems and was right on 31. Its letter answers were right 16 times in 60. English 50%, Catalan 44%. On a laptop, the same 4-bit file scores 44.
 - The maths model's program matched an option on 30 problems and was right on 19. The other 70 answers are letters, and those are at chance (14 right).
 - The same model on a laptop scores 38 (4-bit) to 43 (8-bit): no time pressure there.
 - No answer took more than 50 s in the final run, and none timed out.

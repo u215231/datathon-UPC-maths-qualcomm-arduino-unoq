@@ -52,8 +52,15 @@
       "ca": "Model petit + Python"
     },
     {
-      "id": "shipped_board",
+      "id": "math_board",
       "accuracy": 33,
+      "where": "board",
+      "en": "Maths model + Python",
+      "ca": "Model de mates + Python"
+    },
+    {
+      "id": "shipped_board",
+      "accuracy": 47,
       "where": "board",
       "shipped": true,
       "en": "Uino",
@@ -61,7 +68,7 @@
     },
     {
       "id": "shipped_laptop",
-      "accuracy": 43,
+      "accuracy": 44,
       "where": "laptop",
       "shipped": true,
       "en": "Uino",
@@ -69,19 +76,19 @@
     }
   ],
   "timing": {
-    "mean_s": 35,
-    "max_s": 46,
+    "mean_s": 33,
+    "max_s": 52,
     "over_limit": 0,
     "limit_s": 60
   },
   "program_match": {
     "board": [
-      19,
-      30
+      31,
+      40
     ],
     "laptop": [
-      24,
-      32
+      28,
+      35
     ]
   },
   "finetune": {
@@ -91,7 +98,7 @@
     ]
   },
   "right": [
-    33,
+    47,
     100
   ]
 }

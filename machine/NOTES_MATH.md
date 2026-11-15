@@ -29,4 +29,4 @@ The same recipe on **Qwen2.5-Coder-1.5B-Instruct**, with the 1,346 M3Kang exampl
 | Tuned Qwen2.5-Math 1.5B | 38 balanced; programs right 24 of 31 | 31% (16/52) |
 | Tuned Qwen2.5-Coder 1.5B | 44 balanced; programs right 28 of 35 | 46% (24/52); programs right 16 of 23; max 45 s |
 
-The full 100-row board run of the code model was still going at hand-in. `MATH_MODEL_FILE` in `config.env` chooses the file; the maths model's file works the same way.
+Full 100-row board run of the code model, finished 12:12: **47 of 100** (programs right 31 of 40, letters 16 of 60; mean 33.3 s, max 52.5 s, none over 60 s). `MATH_MODEL_FILE` in `config.env` chooses the file; the maths model's file works the same way.
