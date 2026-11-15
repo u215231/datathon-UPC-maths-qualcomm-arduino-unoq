@@ -4,7 +4,7 @@ Uino is the owl: a maths tutor for Kangaroo problems that runs on an Arduino UNO
 
 ## What you need
 
-A UNO Q 4 GB set up with steps 0–12 of the [setup guide](../README.md): llama.cpp built, the two model services running, and `data/index.db` built. Optional: the maths model file in `~/models` (see [machine/NOTES_MATH.md](../machine/NOTES_MATH.md)); without it, Reason answers with the 0.8B model.
+A UNO Q 4 GB set up with steps 0–12 of the [setup guide](../docs/SETUP_GUIDE.md): llama.cpp built, the two model services running, and `data/index.db` built. Optional: the maths model file in `~/models` (see [machine/NOTES_MATH.md](../machine/NOTES_MATH.md)); without it, Reason answers with the 0.8B model.
 
 ## Install (once, on the board)
 
