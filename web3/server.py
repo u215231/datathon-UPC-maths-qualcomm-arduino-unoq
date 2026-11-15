@@ -47,8 +47,9 @@ SHELL_ROUTES = {"/", "/home", "/teach", "/coach", "/reason", "/solver", "/agent"
 LLM = f"http://127.0.0.1:{CONFIG['LLM_PORT']}"
 LETTERS = "ABCDE"
 MAX_BODY = 15 * 1024 * 1024
-TIME_LIMIT = float(CONFIG["TIME_LIMIT_SECONDS"])
-OCR_SCRIPT = os.path.join(ROOT, "m3kang", "image_to_json.py")
+UPLOADED = os.path.join(ROOT, "data", "uploaded.jsonl")
+IMAGES = os.path.join(ROOT, "data", "images")
+OCR_SCRIPT = os.path.join(HERE, "read_picture.py")  # RapidOCR, with m3kang/image_to_json.py's parsing
 # RapidOCR lives in the laptop's virtual environment, when there is one
 OCR_PYTHON = os.environ.get("OCR_PYTHON") or next(
     (p for p in (os.path.join(ROOT, ".venv", "bin", "python"), os.path.join(ROOT, ".venv", "Scripts", "python.exe"))
@@ -258,19 +259,19 @@ def ocr(body):
         named.group(1) if named else f"lvl-{level}_{year}_{re.sub(r'[^a-zA-Z0-9_-]', '', stem)[:20] or 'custom'}")
 
     with tempfile.TemporaryDirectory() as folder:
-        picture, out = os.path.join(folder, "picture" + ext), os.path.join(folder, "ocr.jsonl")
+        picture = os.path.join(folder, "picture" + ext)
         with open(picture, "wb") as f:
             f.write(image)
         try:
-            run = subprocess.run([OCR_PYTHON, OCR_SCRIPT, "--image", picture, "--out", out, "--no-cache",
-                                  "--default-language", language or "eng"], capture_output=True, text=True, timeout=120)
+            run = subprocess.run([OCR_PYTHON, OCR_SCRIPT, picture], capture_output=True, text=True, timeout=120)
+            read = json.loads(run.stdout.strip().splitlines()[-1]) if run.returncode == 0 else None
         except subprocess.TimeoutExpired:
             raise Refused(500, "Reading the picture took more than 120 seconds.")
-        rows = read_jsonl(out)
-        if run.returncode != 0 or not rows:
-            raise Refused(500, "Reading the picture failed: " + (run.stderr or run.stdout).strip()[-400:])
-    text = str(rows[0].get("text") or "")
-    options = rows[0].get("options") or {}
+        except (ValueError, IndexError):
+            read = None
+    if not isinstance(read, dict):
+        raise Refused(500, "Reading the picture failed: " + (run.stderr or run.stdout).strip()[-400:])
+    text, options = str(read.get("text") or ""), read.get("options") or {}
     problem = {"id": pid, "language": language or detect_language(text), "level": level, "year": year,
                "text_only": len(options) == 5, "text": text, "options": options, "label": label_of(body.get("label"))}
     option_line = "   ".join(f"{l}) {options[l]}" for l in LETTERS if options.get(l))
