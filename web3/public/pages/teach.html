@@ -1,0 +1,58 @@
+<div class="page page-teach">
+  <div class="teach-layout">
+    <div class="teach-main">
+      <section class="panel start" id="start">
+        <h2 data-t="start_title"></h2>
+        <p data-t="start_lead"></p>
+        <label class="field"><span data-t="name"></span><input type="text" id="name" maxlength="40" autocomplete="off"></label>
+        <label class="field"><span data-t="level"></span><select id="level"></select></label>
+        <button class="primary big" id="go" data-t="go"></button>
+        <div class="error" id="start-error" role="alert"></div>
+      </section>
+
+      <section class="panel problem hidden" id="problem">
+        <div class="meta"><span class="pill" id="p-level"></span><span class="pill sun" id="p-topic"></span></div>
+        <div class="text" id="p-text"></div>
+        <div class="options" id="p-options"></div>
+      </section>
+
+      <section class="panel hidden" id="ladder">
+        <div class="ladder-head">
+          <h2 data-t="ladder_title"></h2>
+          <ol class="rungs" id="steps"></ol>
+        </div>
+        <div id="hints"></div>
+        <div class="actions">
+          <button class="secondary" id="hint"></button>
+          <button class="primary" id="next" data-t="next"></button>
+        </div>
+        <div class="ask hidden" id="ask-box">
+          <label for="question" data-t="ask_label"></label>
+          <div class="ask-row"><input type="text" id="question" maxlength="200" autocomplete="off"><button class="secondary" id="ask" data-t="ask_btn"></button></div>
+          <div class="note" id="ask-note"></div>
+        </div>
+        <div class="note keys" data-t="keys"></div>
+      </section>
+    </div>
+
+    <aside class="teach-side">
+      <div class="coach">
+        <div id="teach-owl"></div>
+        <div class="owl-say" id="say" aria-live="polite"></div>
+      </div>
+      <section class="panel hidden" id="progress">
+        <h2><span data-t="progress_title"></span> <span class="who" id="who"></span></h2>
+        <div class="note" data-t="your_level"></div>
+        <div class="track" id="track"></div>
+        <div class="counts" id="stats"></div>
+        <table id="topics"></table>
+        <button class="link" id="leave" data-t="leave"></button>
+      </section>
+      <section class="panel how">
+        <h2 data-t="how_title"></h2>
+        <p data-t="how_text"></p>
+        <p class="note" id="bank"></p>
+      </section>
+    </aside>
+  </div>
+</div>
