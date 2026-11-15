@@ -1,0 +1,56 @@
+# Requirements for the Python code in this directory.
+#
+# Most of the datathon code (predict.py, eval.py, build_index.py, copilot/,
+# explorer/, teach/, owl_eyes/eyes.py, machine/analyse.py, machine/lab.py,
+# machine/predict_one.py, machine/score_run.py, machine/show_outputs.py and
+# app_lab/) uses ONLY the Python standard library. The packages below are
+# needed only by the laptop-side data prep, analysis, UI and fine-tuning
+# scripts listed next to each section.
+#
+# Tested with Python 3.10+ (the board runs 3.13). The vendored checkout under
+# llama.cpp/ has its own requirements files and is not covered here.
+
+# --- Core data / analysis -----------------------------------------------
+# machine/eda.py, machine/token_budget.py, machine/xlang_leak.py,
+# streamlit-app/pages/analytics.py, m3kang/image_to_json_improved.py
+numpy>=1.26
+pandas>=2.0
+
+# machine/eda.py, machine/xlang_leak.py, streamlit-app/pages/analytics.py
+scikit-learn>=1.3
+
+# machine/xlang_leak.py
+scipy>=1.10
+
+# machine/eda.py
+matplotlib>=3.7
+
+# machine/fetch_text.py, machine/make_ft_data.py
+duckdb>=0.10
+
+# --- Dataset / image preparation (m3kang/) ------------------------------
+# m3kang/parquet_to_images.py, parquet_to_jsons*.py, image_to_json*.py
+huggingface_hub>=0.24
+pyarrow>=15
+rapidocr_onnxruntime>=1.3
+
+# m3kang/image_to_json_improved.py, owl_eyes/preview.py
+pillow>=10.0
+
+# --- Streamlit demo app (streamlit-app/) --------------------------------
+streamlit>=1.30
+plotly>=5.18
+
+# --- Fine-tuning (machine/ft_train.py) ----------------------------------
+# Heavy: PyTorch + Transformers download multiple GB. Uncomment if you want
+# to run the local fine-tuning script.
+# torch>=2.1
+# transformers>=4.40
+
+# --- Optional OCR backends (m3kang/image_to_json_improved.py) -----------
+# Only needed when you pass --ocr-type enhanced|paddle|easyocr|tesseract.
+# The default backend (rapidocr) is installed above.
+# paddleocr>=2.7
+# paddlepaddle>=2.5
+# easyocr>=1.7
+# pytesseract>=0.3.10   # also requires the Tesseract binary on PATH
