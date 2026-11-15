@@ -8,7 +8,7 @@ import { esc, renderRichText } from "/pages/rich.js";
 
 const T = {
   cat: { start_title: "Hola! Comencem?",
-    name: "El teu nom", level: "Per quin nivell vols començar?", go: "Comença", ladder_title: "Escala de pistes",
+    name: "El teu nom", level: "Per quin nivell vols començar?", go: "Comença", ladder_title: "Pistes",
     next: "Següent problema", progress_title: "El progrés de", your_level: "El teu nivell ara",
 
     grade: ["5è de primària", "6è de primària", "1r d'ESO", "2n d'ESO", "3r d'ESO", "4t d'ESO", "1r de batxillerat", "2n de batxillerat"],
@@ -20,8 +20,8 @@ const T = {
     say_hint: "Aquí tens una pista. Prova-ho de nou!", say_solution: "Aquesta era difícil. El proper serà una mica més fàcil.",
     say_thinking: "Deixa'm pensar…", say_asked: "He respost la teva pregunta a sota.", say_idea: "Ja tinc la meva idea! Mira a sota.",
     say_warm_right: "Molt bé! Ara torna al problema de dalt amb la mateixa idea.",
-    r_similar: "Problema semblant", r_method: "Mètode", r_model: "La idea d'Uino", r_solution: "Solució",
-    h_similar: "Prova primer aquest problema: s'assembla i és més fàcil", h_method: "El mètode",
+    r_similar: "Problema semblant", r_method: "Per començar", r_model: "La idea d'Uino", r_solution: "Solució",
+    h_similar: "Prova primer aquest problema: s'assembla i és més fàcil", h_method: "Per començar",
     h_board: "La idea d'Uino",
     h_model: "La idea d'Uino",
     h_strategy: "El primer pas", h_solution: "La solució",
@@ -34,7 +34,7 @@ const T = {
     tried: "Fets", solved: "Resolts", first: "A la primera", hints: "Pistes",
     leave: "Canvia d'estudiant" },
   eng: { start_title: "Hi! Shall we start?",
-    name: "Your name", level: "Which level do you want to start at?", go: "Start", ladder_title: "Hint ladder",
+    name: "Your name", level: "Which level do you want to start at?", go: "Start", ladder_title: "Hints",
     next: "Next problem", progress_title: "Progress of", your_level: "Your level now",
 
     grade: ["Grade 5", "Grade 6", "Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Grade 12"],
@@ -46,8 +46,8 @@ const T = {
     say_hint: "Here is a hint. Try again!", say_solution: "That was a hard one. The next one will be a bit easier.",
     say_thinking: "Let me think…", say_asked: "I answered your question below.", say_idea: "I have my own idea now! Look below.",
     say_warm_right: "Well done! Now go back to the problem above with the same idea.",
-    r_similar: "Similar problem", r_method: "Method", r_model: "Uino's idea", r_solution: "Solution",
-    h_similar: "First try this problem: it's similar, and easier", h_method: "The method",
+    r_similar: "Similar problem", r_method: "A way to start", r_model: "Uino's idea", r_solution: "Solution",
+    h_similar: "First try this problem: it's similar, and easier", h_method: "A way to start",
     h_board: "Uino's idea",
     h_model: "Uino's idea",
     h_strategy: "The first step", h_solution: "The solution",
@@ -55,7 +55,7 @@ const T = {
     warm_wrong: "Not this one. Try another option.",
     solution_is: "The correct answer is", confirm: "Are you sure you want to see the solution? The next problem will be easier.",
     ask_label: "Or ask Uino in your own words", ask_btn: "Ask",
-    h_ask: "Uino answers", h_replaced: "The method",
+    h_ask: "Uino answers", h_replaced: "A way to start",
 
     tried: "Done", solved: "Solved", first: "First try", hints: "Hints",
     leave: "Change student" },
@@ -260,7 +260,7 @@ export function mount(root) {
       box.querySelector(".body").textContent = h.text;
       if (h.thinking) waitForIdea(box, source);
     } else {
-      const box = hintBox("", `${t("h_method")}${h.topic ? " · " + h.topic : ""}`);
+      const box = hintBox("", t("h_method"));
       box.querySelector(".body").textContent = h.text;
     }
     if (h.type === "solution") { say("say_solution"); Owl.set("idle"); }

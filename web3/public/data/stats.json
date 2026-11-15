@@ -8,69 +8,69 @@
   },
   "bars": [
     {
-      "id": "baseline",
-      "accuracy": 22,
-      "where": "board",
-      "en": "Organisers' baseline: one letter",
-      "ca": "Base dels organitzadors: una lletra"
-    },
-    {
-      "id": "think",
-      "accuracy": 25,
-      "where": "board",
-      "en": "Think freely, cut at 50 s",
-      "ca": "Pensar lliurement, tallat als 50 s"
-    },
-    {
       "id": "qwen2b",
       "accuracy": 21,
       "where": "board",
-      "en": "Bigger model: Qwen 2B",
-      "ca": "Model més gran: Qwen 2B"
+      "en": "Bigger model → Qwen-2B",
+      "ca": "Model més gran → Qwen-2B"
+    },
+    {
+      "id": "baseline",
+      "accuracy": 22,
+      "where": "board",
+      "en": "Baseline",
+      "ca": "Base"
     },
     {
       "id": "qwen4b",
       "accuracy": 22,
       "where": "board",
-      "en": "Bigger model: Qwen 4B",
-      "ca": "Model més gran: Qwen 4B",
-      "note_en": "too slow: 91 of 100 over 60 s",
-      "note_ca": "massa lent: 91 de 100 passen de 60 s"
+      "en": "Bigger model → Qwen-4B",
+      "ca": "Model més gran → Qwen-4B",
+      "note_en": "too slow",
+      "note_ca": "massa lent"
     },
     {
-      "id": "python",
-      "accuracy": 32,
-      "where": "laptop",
-      "en": "Small model writes Python",
-      "ca": "El model petit escriu Python"
+      "id": "wsp",
+      "accuracy": 22,
+      "where": "board",
+      "en": "Weight-space programming",
+      "ca": "Programació en l'espai de pesos"
+    },
+    {
+      "id": "think",
+      "accuracy": 25,
+      "where": "board",
+      "en": "Free thinking",
+      "ca": "Pensament lliure"
     },
     {
       "id": "old_board",
       "accuracy": 27,
       "where": "board",
-      "en": "Small model: letter + Python",
-      "ca": "Model petit: lletra + Python"
+      "en": "Small model + Python",
+      "ca": "Model petit + Python"
     },
     {
       "id": "shipped_board",
-      "accuracy": 32,
+      "accuracy": 33,
       "where": "board",
       "shipped": true,
-      "en": "Uino: maths model trained to write short programs",
-      "ca": "Uino: model de mates entrenat per escriure programes curts"
+      "en": "Uino",
+      "ca": "Uino"
     },
     {
       "id": "shipped_laptop",
       "accuracy": 43,
       "where": "laptop",
       "shipped": true,
-      "en": "Uino: maths model trained to write short programs",
-      "ca": "Uino: model de mates entrenat per escriure programes curts"
+      "en": "Uino",
+      "ca": "Uino"
     }
   ],
   "timing": {
     "mean_s": 35,
-    "max_s": 49,
+    "max_s": 46,
     "over_limit": 0,
     "limit_s": 60
   },
@@ -89,5 +89,9 @@
       24,
       24
     ]
-  }
+  },
+  "right": [
+    33,
+    100
+  ]
 }

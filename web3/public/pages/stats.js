@@ -7,20 +7,20 @@ const T = {
     lead: "Right answers out of {r} practice problems. Guessing gets {c}%.",
     k_ours: "Uino", k_other: "Other things we tried", k_chance: "Guessing",
     chance: "guessing {c}%", board: "in Uino", laptop: "on a laptop",
-    t_mean: "average time", t_mean_s: "limit {l} s",
-    t_max: "slowest problem", t_max_s: "{o} over the limit",
-    t_prog: "programs that were right", t_prog_s: "when the result matches an option",
-    t_ft: "memorised", t_ft_s: "but no better on new problems",
+    t_mean: "to answer, on average", t_mean_s: "the limit is {l} s",
+    t_max: "for the slowest problem", t_max_s: "none went over the limit",
+    t_prog: "of Uino's programs were right", t_prog_s: "it writes a small program for each problem",
+    t_right: "right answers", t_right_s: "guessing gets {c}",
   },
   cat: {
     title: "Quantes vegades l'encerta Uino?",
     lead: "Respostes correctes de {r} problemes de pràctica. A l'atzar s'encerta el {c}%.",
     k_ours: "Uino", k_other: "Altres coses que hem provat", k_chance: "A l'atzar",
     chance: "a l'atzar {c}%", board: "dins d'Uino", laptop: "en un portàtil",
-    t_mean: "temps mitjà", t_mean_s: "límit {l} s",
-    t_max: "el problema més lent", t_max_s: "{o} per sobre del límit",
-    t_prog: "programes que eren correctes", t_prog_s: "quan el resultat coincideix amb una opció",
-    t_ft: "memoritzats", t_ft_s: "però no millor amb problemes nous",
+    t_mean: "per respondre, de mitjana", t_mean_s: "el límit és {l} s",
+    t_max: "per al problema més lent", t_max_s: "cap ha passat del límit",
+    t_prog: "dels programes d'Uino eren correctes", t_prog_s: "escriu un petit programa per a cada problema",
+    t_right: "respostes correctes", t_right_s: "a l'atzar se n'encerten {c}",
   },
 };
 
@@ -63,15 +63,15 @@ export function mount(root) {
 
   function render() {
     if (!data) return;
-    const t = T[App.lang], s = data.set, time = data.timing, match = data.program_match, ft = data.finetune.memorised;
+    const t = T[App.lang], s = data.set, time = data.timing, match = data.program_match, right = data.right;
     root.querySelector('[data-t="lead"]').textContent = fmt(t.lead, { r: s.rows, p: s.problems, c: s.chance });
     chart();
     const tile = (big, title, sub) => `<div class="tile"><b>${big}</b><span>${esc(title)}</span><em>${esc(sub)}</em></div>`;
     $("tiles").innerHTML =
-      tile(`${time.mean_s}<small> s</small>`, t.t_mean, fmt(t.t_mean_s, { l: time.limit_s })) +
-      tile(`${time.max_s}<small> s</small>`, t.t_max, fmt(t.t_max_s, { o: time.over_limit })) +
+      tile(`${right[0]}<small> / ${right[1]}</small>`, t.t_right, fmt(t.t_right_s, { c: s.chance })) +
       tile(`${match.board[0]}<small> / ${match.board[1]}</small>`, t.t_prog, t.t_prog_s) +
-      tile(`${ft[0]}<small> / ${ft[1]}</small>`, t.t_ft, t.t_ft_s);
+      tile(`${time.mean_s}<small> s</small>`, t.t_mean, fmt(t.t_mean_s, { l: time.limit_s })) +
+      tile(`${time.max_s}<small> s</small>`, t.t_max, t.t_max_s);
   }
 
   const stopTexts = App.texts(root, T, render);

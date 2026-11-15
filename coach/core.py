@@ -32,6 +32,12 @@ TOPICS = {
     "measures": r"\bkm\b|speed|hour|minute|second|clock|euro|cent|price|cost|\bage\b|years old|kg\b|litre|liter|weigh",
 }
 
+# The second rung: advice that fits any problem. (The per-topic tips below come from keyword rules, which put
+# about four problems in ten under the wrong topic, so they are no longer shown as "the method".)
+START = {
+    "eng": "Write down what you know and what is asked. Then try a smaller version of the problem, or test the options one by one.",
+    "cat": "Escriu què saps i què et demanen. Després prova una versió més petita del problema, o comprova les opcions una per una.",
+}
 TIPS = {
     "geometry": {
         "eng": "Draw the figure and write on it every length or angle you know. Which ones are missing?",
@@ -385,7 +391,7 @@ class Trainer:
                     topic = self.bank.topic[pid]
                     self.led("hint", state["rung"])
                     return {"rung": state["rung"], "type": rung, "topic": TOPIC_NAMES[topic][language],
-                            "text": TIPS[topic][language]}
+                            "text": START[language]}
                 elif rung == "model":
                     # Best first: the board's own solution put into words (checked against the answer key),
                     # then the hint the model wrote ahead of time, then a hand-written first step.
@@ -463,7 +469,7 @@ class Trainer:
             self.led("level", student["level"])
             if reason:
                 topic = self.bank.topic[pid]
-                return {"shown": "method", "replaced": True, "text": TIPS[topic][language],
+                return {"shown": "method", "replaced": True, "text": START[language],
                         "topic": TOPIC_NAMES[topic][language], "seconds": seconds}
             return {"shown": "model", "replaced": False, "text": reply, "seconds": seconds}
 

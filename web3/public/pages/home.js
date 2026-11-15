@@ -1,7 +1,7 @@
 /* Home: a short landing page for students. */
 const T = {
   eng: {
-    title: "Meet Uino, the owl that helps you think.",
+    title: "Hello Uino!",
     lead: "Practise Kangaroo maths problems with a coach that gives you hints, never the answer.",
     go: "Start practising",
     teach_h: "Teach", teach_p: "Solve problems at your level. Stuck? Ask for a hint.",
@@ -9,7 +9,7 @@ const T = {
     stats_h: "Stats", stats_p: "How often is Uino right?",
   },
   cat: {
-    title: "Et presentem Uino, el mussol que t'ajuda a pensar.",
+    title: "Hola Uino!",
     lead: "Practica problemes de les proves Cangur amb un entrenador que et dona pistes, mai la resposta.",
     go: "Comença a practicar",
     teach_h: "Aprèn", teach_p: "Resol problemes del teu nivell. T'has encallat? Demana una pista.",
