@@ -50,9 +50,9 @@ flowchart LR
 
 The program is cut exactly at 44 s, so every answer arrives before 50 s. If the maths model's file is missing, the earlier pipeline answers with the 0.8B model.
 
-### The maths model
+### The program-writing model
 
-Qwen2.5-Math-1.5B writes good programs but long ones, and the board writes 3 tokens a second. We fine-tuned it to write short ones: a large model wrote a program for each of 734 M3Kang problems, we ran them all and kept the 673 whose result equals the correct option, and trained for 3 epochs on those (English and Catalan text, 1,346 examples; about 3 minutes on one RTX 4090). Details: [machine/NOTES_MATH.md](machine/NOTES_MATH.md).
+We first tuned Qwen2.5-Math-1.5B, then Qwen2.5-Coder-1.5B with the same recipe plus 500 problems we invented ourselves (2,346 examples); the code model writes more programs that are right, and is the one shipped (`qwen25-coder-15b-code2-e3-Q4_K_M.gguf`). The recipe: Qwen2.5-Math-1.5B writes good programs but long ones, and the board writes 3 tokens a second. We fine-tuned it to write short ones: a large model wrote a program for each of 734 M3Kang problems, we ran them all and kept the 673 whose result equals the correct option, and trained for 3 epochs on those (English and Catalan text, 1,346 examples; about 3 minutes on one RTX 4090). Details: [machine/NOTES_MATH.md](machine/NOTES_MATH.md).
 
 ## How to replicate it
 
@@ -73,7 +73,7 @@ bash owl/install.sh
 
 Then open `http://<board-ip>:8000`, or over USB: `adb forward tcp:8000 tcp:8000` and <http://127.0.0.1:8000>. [owl/README.md](owl/README.md) has every step, what you should see, and how to read a photo of a problem from a laptop.
 
-The maths model file (`qwen25-math-15b-code-e3-Q4_K_M.gguf`, 986 MB) goes in `~/models`; [machine/NOTES_MATH.md](machine/NOTES_MATH.md) says how to make it. Without it, Reason uses the 0.8B model.
+The model file (`qwen25-coder-15b-code2-e3-Q4_K_M.gguf`, 986 MB) goes in `~/models`; [machine/NOTES_MATH.md](machine/NOTES_MATH.md) says how to make it. Without it, Reason uses the 0.8B model.
 
 ## Results
 
@@ -87,9 +87,11 @@ All Reason numbers are on the organisers' **practice set: 50 new problems × Eng
 | Weight-space-programming 0.8B, with reasoning | 22 (on 100 M3Kang problems) | about 44 s |
 | 0.8B thinks freely, cut at 50 s | 25 | 50 s |
 | 0.8B: letter + Python + balancing | 27 | mean 33 s, max 49 s |
-| **Uino: tuned maths model + letter + balancing** | **33** (32 on a first run) | **mean 35 s, max 46 s** |
+| Tuned maths model (Qwen2.5-Math 1.5B) + letter + balancing | 33 (32 on a first run) | mean 35 s, max 46 s |
+| **Uino, shipped: tuned code model (Qwen2.5-Coder 1.5B) + letter + balancing** | **46% on the first 52 problems** (the maths model: 31% on the same 52) | **mean 32 s, max 45 s** |
 
-- Uino's program matched an option on 30 problems and was right on 19. The other 70 answers are letters, and those are at chance (14 right).
+- The shipped code model was swapped in at the last hour: its full board run was not finished at hand-in, so its row is the first 52 problems (programs right 16 of 23). On a laptop, in the same 4-bit file, it scores 44 of 100 (programs right 28 of 35) against 38 for the maths model.
+- The maths model's program matched an option on 30 problems and was right on 19. The other 70 answers are letters, and those are at chance (14 right).
 - The same model on a laptop scores 38 (4-bit) to 43 (8-bit): no time pressure there.
 - No answer took more than 50 s in the final run, and none timed out.
 
@@ -134,7 +136,6 @@ Teach (measured on our board): the hint ladder answers in milliseconds, because 
 | `owl/` | plug and play: install once, starts at every boot |
 | `owl_eyes/` | the eye animations and their previews |
 | `machine/` | laptop experiments and notes; `score_run.py` scores a run |
-| `web1/`, `web2/`, `teach/` | earlier versions of the page, kept for reference |
 | `docs/SETUP_GUIDE.md` | the organisers' guide: board setup, steps 0–15 |
 | `config.env` | pinned models and llama.cpp commit, settings |
 

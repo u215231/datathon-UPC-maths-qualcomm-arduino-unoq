@@ -19,3 +19,14 @@ Measured on the organisers' practice set (100 rows, chance 20%):
 | Maths model, tuned: Python + letter + balancing | 32% | 43% |
 
 On the board the tuned model's program matched an option on 30 problems and was right on 19; mean 34.8 s, max 49.4 s per problem. Speeds on the board: reads 5.1 tokens/s, writes 3.0.
+
+## Update, 15 Nov 11:50: the shipped model is the code model
+
+The same recipe on **Qwen2.5-Coder-1.5B-Instruct**, with the 1,346 M3Kang examples plus 500 problems we invented (each with a checked program, English and Catalan: 2,346 examples), gives `qwen25-coder-15b-code2-e3-Q4_K_M.gguf`. Same size and speed on the board.
+
+| Model (4-bit) | Laptop, 100 practice rows | Board, first 52 practice rows |
+| --- | --- | --- |
+| Tuned Qwen2.5-Math 1.5B | 38 balanced; programs right 24 of 31 | 31% (16/52) |
+| Tuned Qwen2.5-Coder 1.5B | 44 balanced; programs right 28 of 35 | 46% (24/52); programs right 16 of 23; max 45 s |
+
+The full 100-row board run of the code model was still going at hand-in. `MATH_MODEL_FILE` in `config.env` chooses the file; the maths model's file works the same way.
