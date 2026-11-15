@@ -4,7 +4,7 @@ A maths coach that runs on the Arduino UNO Q, offline. A student answers Kangaro
 
 > Written on 15 Nov 2026. Numbers marked *(board)* were measured on our UNO Q with `coach/measure.py`, which writes `results/teach-measure.json`.
 >
-> The same Coach is also a page of the team's combined web app: `python3 web3/server.py --host 0.0.0.0`, then open `/coach`.
+> The same Coach is the Teach page of the team's web app (`web3/`), with the owl as its face: see [The web app](#the-web-app-web3).
 
 ## Why it works this way
 
@@ -26,7 +26,7 @@ So the small model can't use a similar problem, but a student can. The coach giv
 | --- | --- | --- | --- |
 | 1 | A similar problem at a lower level, to solve first | The nearest neighbours in the bge-small embeddings | Milliseconds |
 | 2 | The topic and a method | Keyword rules on the problem text, and a tip we wrote per topic | Milliseconds |
-| 3 | A one-sentence idea from the model | Written ahead of time by Qwen3.5 0.8B, and checked in code | Milliseconds to show |
+| 3 | The owl's idea | In the web app: the board's own solution put into words, when it has one (see [Grounded hints](#grounded-hints)). Else the one-sentence idea `make_hints.py` wrote ahead of time, else a hand-written first step. | Milliseconds to show |
 | 4 | The solution | The M3Kang label | Milliseconds |
 
 5. If they needed the solution, the next problem is one level easier, on the same topic when there is one.
@@ -34,6 +34,40 @@ So the small model can't use a similar problem, but a student can. The coach giv
 At any time before the solution, the student can also **ask the coach a question** in their own words. This is the only step that waits for the language model: about 20 to 30 seconds, while the LED matrix shows three dots. The model gets a coach's system prompt ("name the next step, don't calculate, never give the answer"). A system prompt isn't enough with a small model, so the code checks the reply before the student sees it. If it fails, the student gets the method tip for the topic instead, and the page says so. Asking counts as help: the level doesn't go up on that problem.
 
 The student's progress stays in a SQLite file on the board (`data/teach_profile.db`). Nothing leaves the device.
+
+In the web app, the first wrong answer also brings a guiding question from the owl (hand-written per kind of problem in `copilot/teach.py`, in Catalan and English). It's free: it isn't a rung.
+
+## The web app (`web3/`)
+
+One server, standard library only, with three pages: **Teach** (this coach), **Reason** (a picture, typed text or a practice problem, solved by `copilot.pipeline.solve` with a countdown against the 60-second limit) and **Stats** (the numbers in `web3/public/data/stats.json`).
+
+```bash
+cd ~/datathon-UPC-maths-qualcomm-arduino-unoq
+python3 coach/build_bank.py                      # once
+python3 web3/server.py --host 0.0.0.0            # then open http://<board-ip>:8000
+python3 coach/check.py http://<board-ip>:8000 --api=/api/coach --ask
+```
+
+Options: `--prefer-grounded` (choose first the problems that already have a grounded hint), `--no-grounded`, `--no-coach`, `--led http://127.0.0.1:7000`.
+
+### Grounded hints
+
+While the student reads a problem, a background thread (`coach/grounded.py`) asks the model for a Python program that solves it, as the Reason copilot does. If the program's result matches an option, and that option is the answer key's, the model explains the program in words: the method, then the first step. Every sentence passes the leak checks before it's kept.
+
+- It takes minutes on the board (measured with the earlier Teach page: 84 s for the method, 41 s more for the first step), so the student never waits for it. Rung 3 shows what is ready, and the page adds the owl's idea when it arrives.
+- About one problem in ten gets one: the program has to run, match an option and agree with the key.
+- The checks stop answers, not bad explanations: the model can explain a right program badly. The page says so.
+- Reason pauses this thread, so a timed solve has the model to itself.
+- Results are kept in `data/teach_grounded.json`. Before a demo, write them ahead of time while nobody needs the model:
+
+```bash
+python3 coach/warm_grounded.py --levels 0-3 --limit 40
+python3 web3/server.py --host 0.0.0.0 --prefer-grounded
+```
+
+### The owl's eyes
+
+The page draws an owl whose eyes follow the same states as the LED matrix: idle (blinks), sleeping (eyes closed, after a quiet while), thinking, hint, correct, wrong, listening. The frames are in `owl_eyes/eyes.py`; `python3 owl_eyes/eyes.py` regenerates the sketch in `owl_eyes/sketch/` and copies it to `coach/applab/sketch/`. The App Lab app in `coach/applab/` plays them: the server calls `GET http://127.0.0.1:7000/eyes/<state>/0`. The sketch in this version has not been compiled or tried on the board.
 
 ## How it uses M3Kang
 
@@ -68,7 +102,7 @@ cp -r coach/applab/python coach/applab/sketch coach/applab/assets coach/applab/a
 arduino-app-cli app start user:cangur-face
 ```
 
-The server calls the LED app at `http://127.0.0.1:7000`. If the app isn't running, the page works the same.
+The server calls the LED app at `http://127.0.0.1:7000`. If the app isn't running, the page works the same. The app shows the owl's eyes (`owl_eyes/`): a tick is the happy eyes, a cross the worried ones, and after two quiet minutes the owl falls asleep.
 
 Check everything from your laptop, and measure:
 
@@ -136,7 +170,9 @@ None of these beat the baseline by more than the margin of error. The team's `pr
 | `public/index.html` | The student's page, in Catalan and English |
 | `coach.py` | The live question to the model: the system prompt and the request |
 | `make_hints.py` | Writes and checks the model's hints ahead of time |
-| `applab/` | The App Lab app that draws on the LED matrix |
+| `grounded.py` | Hints from the board's own solution, written in the background |
+| `warm_grounded.py` | Writes those hints ahead of time |
+| `applab/` | The App Lab app that plays the owl's eyes on the LED matrix |
 | `check.py` | Checks a running server from start to finish |
 | `measure.py` | Speed, first-rung quality, hints, and simulated students |
 

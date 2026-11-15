@@ -433,3 +433,8 @@ if __name__ == "__main__":
     write_sketch(sketch)
     used = {fr for c in CLIPS.values() for fr, _ in c}
     print(f"{len(used)} frames, {len(CLIPS)} clips, {len(STATES)} states -> {sketch}", file=sys.stderr)
+    # The web app's LED app (coach/applab) runs the same sketch: keep its copy in step
+    applab = pathlib.Path(__file__).resolve().parent.parent / "coach" / "applab" / "sketch" / "sketch.ino"
+    if applab.parent.exists():
+        applab.write_text(sketch.read_text())
+        print(f"copied to {applab}", file=sys.stderr)

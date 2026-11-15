@@ -451,3 +451,9 @@ body.is-navigating #app { opacity: .5; transition: opacity .12s ease; }
   .footer-logos .logo-cell-d { grid-area: 3 / 2; }
   .footer-logos .logo-feature { height: 40px; max-width: 100%; }
 }
+
+@media (max-width: 480px) {
+  .brand-title { font-size: 15px; letter-spacing: .01em; }
+  .site-nav a { padding: 0 7px; min-width: 40px; justify-content: center; }
+  .lang-switch button { min-width: 34px; padding: 0 4px; }
+}

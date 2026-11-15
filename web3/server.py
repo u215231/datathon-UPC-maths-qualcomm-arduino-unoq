@@ -458,6 +458,8 @@ def main():
     p.add_argument("--no-coach", action="store_true", help="turn off 'ask the owl'")
     p.add_argument("--no-grounded", action="store_true",
                    help="don't write hints from the board's own solution in the background")
+    p.add_argument("--prefer-grounded", action="store_true",
+                   help="choose first the problems that already have a grounded hint (coach/warm_grounded.py)")
     p.add_argument("--review", action="store_true", help="also serve /review (it shows the answers)")
     args = p.parse_args()
     os.chdir(ROOT)
@@ -472,7 +474,8 @@ def main():
 
     bank = Bank(args.bank)
     grounder = None if args.no_grounded else Grounder()
-    trainer = Trainer(bank, args.profile, led=led, coach=None if args.no_coach else ask_model, grounder=grounder)
+    trainer = Trainer(bank, args.profile, led=led, coach=None if args.no_coach else ask_model, grounder=grounder,
+                      prefer_grounded=args.prefer_grounded)
     practice = Practice()
     solver = Solver(grounder, eyes)
     print(f"Teach: {len(bank.level)} problems, {bank.hint_count()} model hints, grounded hints "

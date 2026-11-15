@@ -1,4 +1,4 @@
-# The LED matrix of the Cangur Coach. The Teach server tells it what to draw.
+# The owl's eyes on the LED matrix. The web app (web3/server.py) tells it which state to play.
 name: cangur-face
 icon: 🦘
 ports: []

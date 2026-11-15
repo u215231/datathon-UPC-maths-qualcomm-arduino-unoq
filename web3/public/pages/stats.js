@@ -46,7 +46,7 @@ export function mount(root) {
   const $ = (id) => root.querySelector(`#${id}`);
   const App = window.App;
   window.Owl.mount($("stats-owl"));
-  let data = null, alive = true;
+  let data = null, alive = true, drawn = false;
   const fmt = (text, values) => String(text).replace(/\{(\w)\}/g, (_, k) => values[k] ?? "");
 
   function chart() {
@@ -66,16 +66,18 @@ export function mount(root) {
       const y = top + i * row, h = narrow ? 22 : 26, by = narrow ? y + 26 : y + 6;
       const name = esc(en ? bar.en : bar.ca), note = esc((en ? bar.note_en : bar.note_ca) || "");
       const where = bar.where === "laptop" ? t.laptop : t.board;
-      if (narrow) svg += `<text class="name" x="${x0}" y="${y + 16}">${name}</text>`;
+      if (narrow) svg += `<text class="name" x="${x0}" y="${y + 16}">${name} <tspan class="tag">· ${esc(where)}</tspan></text>`;
       else svg += `<text class="name" x="${labelW - 10}" y="${y + (note ? 18 : 24)}" text-anchor="end">${name}</text>` +
         (note ? `<text class="sub" x="${labelW - 10}" y="${y + 34}" text-anchor="end">${note}</text>` : "");
       svg += `<rect class="bar ${bar.shipped ? "ours" : ""}" x="${x0}" y="${by}" width="${x(bar.accuracy) - x0}" height="${h}" rx="6" style="animation-delay:${i * 60}ms"/>` +
         `<text class="val" x="${x(bar.accuracy) + 8}" y="${by + h / 2 + 6}">${bar.accuracy}%</text>` +
-        `<text class="tag" x="${x(bar.accuracy) + 52}" y="${by + h / 2 + 5}">${esc(where)}</text>`;
+        (narrow ? "" : `<text class="tag" x="${x(bar.accuracy) + 52}" y="${by + h / 2 + 5}">${esc(where)}</text>`);
     });
     svg += `<line class="chance" x1="${x(chance)}" x2="${x(chance)}" y1="${top - 14}" y2="${H - 22}"/>` +
       `<text class="chance-label" x="${x(chance) + 6}" y="${top - 12}">${esc(fmt(t.chance, { c: chance }))}</text></svg>`;
     $("chart").innerHTML = svg;
+    $("chart").classList.toggle("grow", !drawn);  // the bars grow once, not on every resize
+    drawn = true;
   }
 
   function render() {

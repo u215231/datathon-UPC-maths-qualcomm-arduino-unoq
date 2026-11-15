@@ -258,9 +258,10 @@ RUNGS = ("similar", "method", "model", "solution")
 class Trainer:
     """Turns answers into the next step. One instance serves every student."""
 
-    def __init__(self, bank, profile_path, led=None, coach=None, seed=42, grounder=None):
+    def __init__(self, bank, profile_path, led=None, coach=None, seed=42, grounder=None, prefer_grounded=False):
         self.bank = bank
         self.grounder = grounder  # coach/grounded.py: hints from the board's own solution, or None
+        self.prefer_grounded = prefer_grounded and grounder is not None  # choose those problems first
         self.led = led or (lambda *_args: None)
         self.coach = coach  # coach(problem, question) -> text, from coach/coach.py; None turns it off
         self.coach_busy = threading.Lock()  # the board's model answers one request at a time
@@ -312,6 +313,16 @@ class Trainer:
             len(state["wrong"]), state["rung"] + state["asks"], int(state["warmup_for"] is not None), time.time()))
         self.db.commit()
 
+    def _pick(self, language, level, seen, **how):
+        """bank.pick, trying first the problems that already have a grounded hint (if asked to)."""
+        if self.prefer_grounded:
+            without = {pid for pid, lvl in self.bank.level.items()
+                       if lvl == level and self.grounder.get(pid, language)["status"] != "ready"}
+            pid = self.bank.pick(language, level, seen | without, **how)
+            if pid:
+                return pid
+        return self.bank.pick(language, level, seen, **how)
+
     # -- the API --
 
     def start(self, name, language, level):
@@ -322,7 +333,7 @@ class Trainer:
             self.db.execute("INSERT INTO students VALUES (?, ?, ?) ON CONFLICT(name) DO UPDATE SET "
                             "language = excluded.language, level = excluded.level", (name, language, level))
             self.db.commit()
-            pid = self.bank.pick(language, level, self._seen(name), rng=self.rng)
+            pid = self._pick(language, level, self._seen(name), rng=self.rng)
             if pid is None:
                 raise ValueError("no problems left at this level")
             self.led("level", level)
@@ -476,8 +487,8 @@ class Trainer:
             seen = self._seen(name)
             pid = None
             for candidate in sorted(LEVELS, key=lambda l: (abs(l - level), l)):
-                pid = (self.bank.pick(student["language"], candidate, seen, near=near, topic=topic, rng=self.rng)
-                       or self.bank.pick(student["language"], candidate, seen, near=near, rng=self.rng))
+                pid = (self._pick(student["language"], candidate, seen, near=near, topic=topic, rng=self.rng)
+                       or self._pick(student["language"], candidate, seen, near=near, rng=self.rng))
                 if pid:
                     level = candidate
                     break

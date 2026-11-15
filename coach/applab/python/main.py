@@ -1,17 +1,27 @@
-"""The Cangur Coach's face: the board's 8x13 LED matrix.
+"""The owl's eyes: the board's 8x13 LED matrix, behind the glasses of the 3D-printed owl.
 
-The Teach server (coach/server.py, port 8000) calls this app over HTTP:
+One set of animations for the whole product: the frames and timings are in owl_eyes/eyes.py,
+the sketch (sketch/sketch.ino, generated from it) plays them, and this app lets the web
+servers choose the state over HTTP. The owl on the web page (web3/public/owl.js) shows the
+same states.
 
-    GET /led/tick/0      a tick, for a right answer
-    GET /led/cross/0     a cross, for a wrong answer
-    GET /led/level/5     the student's level, 0 to 7, with a bar under it
-    GET /led/hint/2      a question mark and the rung of the hint ladder
-    GET /led/letter/C    the solution's letter
-    GET /led/think/0     three dots, while the model answers a student's question
-    GET /led/face/0      the idle face
+    GET /eyes/idle/0        open eyes that blink and glance (the resting state)
+    GET /eyes/sleeping/0    eyes closed, a z drifting away
+    GET /eyes/thinking/0    a light runs round each eye, while the model works
+    GET /eyes/hint/0        leans in, raises a brow, winks
+    GET /eyes/correct/0     happy eyes, bouncing (back to idle after 7 s)
+    GET /eyes/wrong/0       worried, kind (back to idle after 9 s)
+    GET /eyes/listening/0   wide awake, looking at the student
+    GET /eyes/boot/0        the wake-up animation
 
-A tick, a cross, a hint or a letter stays for a few seconds, then the level
-comes back. Nothing flashes.
+When nothing has asked for anything for SLEEP_AFTER seconds, the owl falls asleep: its eyes
+close completely. Any request wakes it.
+
+The Coach's first protocol still works (coach/server.py sends it):
+
+    GET /led/tick/0  -> correct      GET /led/cross/0 -> wrong      GET /led/think/0 -> thinking
+    GET /led/hint/2  -> hint         GET /led/face/0  -> idle       GET /led/level/5 -> idle
+    GET /led/letter/C  the solution's letter, for a few seconds, then idle
 """
 import time
 
@@ -19,141 +29,87 @@ import numpy as np
 from arduino.app_bricks.web_ui import WebUI
 from arduino.app_utils import App, Bridge, Frame
 
+STATES = ("idle", "boot", "thinking", "hint", "correct", "wrong", "listening", "sleeping")
+# Seconds a state stays before the eyes go back to idle (0 = until the next request)
+HOLD = {"correct": 7.0, "wrong": 9.0, "hint": 12.0, "listening": 30.0, "boot": 5.5}
+FROM_LED = {"tick": "correct", "cross": "wrong", "hint": "hint", "think": "thinking", "face": "idle", "level": "idle"}
+SLEEP_AFTER = 120.0  # seconds without a request before the owl falls asleep
+LETTER_HOLD = 5.0
 ON = 7
-HOLD = 4.0  # seconds a tick, a cross, a hint or a letter stays on
 
-# 5x7 characters
+# 5x7 letters, for the solution
 FONT = {
     "A": [".###.", "#...#", "#...#", "#####", "#...#", "#...#", "#...#"],
     "B": ["####.", "#...#", "#...#", "####.", "#...#", "#...#", "####."],
     "C": [".###.", "#...#", "#....", "#....", "#....", "#...#", ".###."],
     "D": ["####.", "#...#", "#...#", "#...#", "#...#", "#...#", "####."],
     "E": ["#####", "#....", "#....", "####.", "#....", "#....", "#####"],
-    "?": [".###.", "#...#", "....#", "...#.", "..#..", ".....", "..#.."],
-    "0": [".###.", "#...#", "#..##", "#.#.#", "##..#", "#...#", ".###."],
-    "1": ["..#..", ".##..", "..#..", "..#..", "..#..", "..#..", ".###."],
-    "2": [".###.", "#...#", "....#", "...#.", "..#..", ".#...", "#####"],
-    "3": ["####.", "....#", "....#", ".###.", "....#", "....#", "####."],
-    "4": ["...#.", "..##.", ".#.#.", "#..#.", "#####", "...#.", "...#."],
-    "5": ["#####", "#....", "####.", "....#", "....#", "#...#", ".###."],
-    "6": [".###.", "#....", "#....", "####.", "#...#", "#...#", ".###."],
-    "7": ["#####", "....#", "...#.", "..#..", ".#...", ".#...", ".#..."],
 }
 
-# Whole 8x13 pictures
-TICK = [".............",
-        "...........#.",
-        "..........##.",
-        ".........##..",
-        ".#......##...",
-        ".##....##....",
-        "..##..##.....",
-        "...####......"]
-CROSS = [".............",
-         "...#.....#...",
-         "....#...#....",
-         ".....#.#.....",
-         "......#......",
-         ".....#.#.....",
-         "....#...#....",
-         "...#.....#..."]
-FACE = [".............",
-        "..###...###..",
-        "..#.#...#.#..",
-        "..###...###..",
-        ".............",
-        "...#.....#...",
-        "....#####....",
-        "............."]
+state = {"eyes": "boot", "asked": time.time(), "until": time.time() + HOLD["boot"]}
 
 
-THINK = [".............",
-         ".............",
-         ".............",
-         ".##..##..##..",
-         ".##..##..##..",
-         ".............",
-         ".............",
-         "............."]
+def show(name):
+    """Play one eye state. Returns False if the sketch didn't take it."""
+    try:
+        ok = bool(Bridge.call("eyes", name))
+    except Exception:  # noqa: BLE001 - a busy or missing microcontroller must not stop the app
+        ok = False
+    if ok:
+        state["eyes"] = name
+        state["until"] = time.time() + HOLD[name] if name in HOLD else 0.0
+    return ok
 
 
-def picture(rows):
+def letter(char):
     grid = np.zeros((8, 13), dtype=np.uint8)
-    for r, line in enumerate(rows):
+    for r, line in enumerate(FONT[char]):
         for c, pixel in enumerate(line):
             if pixel == "#":
-                grid[r, c] = ON
-    return grid
+                grid[r, 4 + c] = ON
+    try:
+        Bridge.call("draw", Frame(grid).to_board_bytes())
+    except Exception:  # noqa: BLE001
+        return False
+    state["eyes"] = "letter"
+    state["until"] = time.time() + LETTER_HOLD
+    return True
 
 
-def text(chars, bar=0):
-    """One or two 5x7 characters, with an optional bar on the bottom row."""
-    grid = np.zeros((8, 13), dtype=np.uint8)
-    left = 4 if len(chars) == 1 else 1
-    for i, char in enumerate(chars):
-        for r, line in enumerate(FONT[char]):
-            for c, pixel in enumerate(line):
-                if pixel == "#":
-                    grid[r, left + 6 * i + c] = ON
-    grid[7, :bar] = 3
-    return grid
+def eyes(name: str, value: str = "0"):
+    name = name.strip().lower()
+    if name not in STATES:
+        return {"error": "unknown state", "states": list(STATES)}
+    state["asked"] = time.time()
+    return {"ok": show(name), "eyes": state["eyes"]}
 
 
-state = {"level": None, "until": 0.0, "shown": "face"}
-
-
-def draw(grid):
-    Bridge.call("draw", Frame(grid).to_board_bytes())
-
-
-def rest():
-    """What the matrix shows when nothing is happening: the level, or the face."""
-    if state["level"] is None:
-        draw(picture(FACE))
-    else:
-        draw(text(str(state["level"]), bar=state["level"] + 1))
-
-
-def led(kind: str, value: str):
-    hold = True
-    if kind == "tick":
-        draw(picture(TICK))
-    elif kind == "cross":
-        draw(picture(CROSS))
-    elif kind == "level" and value in list("01234567"):
-        state["level"] = int(value)
-        hold = False
-        rest()
-    elif kind == "hint" and value in list("1234"):
-        draw(text("?" + value))
-    elif kind == "letter" and value.upper() in list("ABCDE"):
-        draw(text(value.upper()))
-    elif kind == "think":
-        hold = False  # stays until the model has answered and the server sends the level again
-        draw(picture(THINK))
-    elif kind == "face":
-        state["level"] = None
-        hold = False
-        rest()
-    else:
+def led(kind: str, value: str = "0"):
+    """The Coach's first protocol, shown with the owl's eyes."""
+    state["asked"] = time.time()
+    if kind == "letter" and value.upper() in FONT:
+        return {"ok": letter(value.upper()), "shown": "letter"}
+    if kind not in FROM_LED:
         return {"error": "unknown picture"}
-    state["shown"] = kind
-    state["until"] = time.time() + HOLD if hold else 0.0
-    return {"ok": True, "shown": kind}
+    name = FROM_LED[kind]
+    # "level" follows every answer and every model call: it only ends thinking, or wakes the owl
+    if kind == "level" and state["eyes"] not in ("thinking", "sleeping", "boot"):
+        return {"ok": True, "shown": state["eyes"]}
+    return {"ok": show(name), "shown": name}
 
 
 def loop():
-    """Go back to the level when a tick, a cross, a hint or a letter has been on long enough."""
-    if state["until"] and time.time() > state["until"]:
-        state["until"] = 0.0
-        state["shown"] = "level"
-        rest()
+    now = time.time()
+    if state["until"] and now > state["until"]:
+        show("idle")
+    elif state["eyes"] == "idle" and now - state["asked"] > SLEEP_AFTER:
+        show("sleeping")
     time.sleep(0.2)
 
 
 ui = WebUI()
+ui.expose_api("GET", "/eyes/{name}/{value}", eyes)
 ui.expose_api("GET", "/led/{kind}/{value}", led)
 ui.expose_api("GET", "/status", lambda: state)
 
-rest()
 App.run(user_loop=loop)

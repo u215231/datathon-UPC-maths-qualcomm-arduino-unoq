@@ -11,7 +11,8 @@
 .chart .tick { font-size: 12px; fill: var(--muted); }
 .chart .chance { stroke: var(--coral); stroke-width: 2; stroke-dasharray: 6 5; }
 .chart .chance-label { font-size: 12.5px; font-weight: 700; fill: var(--coral); }
-.chart .bar { transform-box: fill-box; transform-origin: left; animation: grow .7s ease-out both; }
+.chart.grow .bar { transform-box: fill-box; transform-origin: left; animation: grow .7s ease-out backwards; }
+.chart .name .tag { font-size: 11px; }
 @keyframes grow { from { transform: scaleX(0); } }
 
 .legend { display: flex; flex-wrap: wrap; gap: 8px 22px; margin-top: 10px; font-size: 14px; color: var(--muted); }
