@@ -1,0 +1,1 @@
+Execute this web with `npm start`. You have to install Node.js environment and do pip install the requirements.txt.

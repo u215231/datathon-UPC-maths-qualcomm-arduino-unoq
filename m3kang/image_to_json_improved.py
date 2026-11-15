@@ -1,27 +1,10 @@
-"""Convert M3Kang problem images into JSON/JSONL using enhanced multi-engine OCR & VLM vision.
-
-Addresses common M3Kang OCR failures:
-  - Visual options (shapes, graphs, figures) via visual-option detection & VLM fallback
-  - Garbled fractions/formulas (e.g. 1/2 read as 12) via 3x upscaling & 2D column fraction reconstruction
-  - Duplicate options via high-contrast retry & strict uniqueness validation
-  - Dates (e.g. 11/10/2020) via slash preservation and DD/MM/YYYY repair
-
-Usage:
-    python image_to_json.py --ocr-type rapidocr-enhanced
-    python image_to_json.py --ocr-type hybrid --vlm-url http://127.0.0.1:8083
-    python image_to_json.py --update-jsonl ../data/val.jsonl --only-empty-options --ocr-type hybrid
-    python image_to_json.py --image path/to/problem.png --ocr-type rapidocr-enhanced
-"""
 import argparse
-import base64
 import io
 import json
 import os
 import re
 import sys
 import time
-import urllib.error
-import urllib.request
 from collections import Counter
 
 LETTERS = "ABCDE"
@@ -32,8 +15,7 @@ OCR_TYPES = (
     "paddleocr",
     "easyocr",
     "tesseract",
-    "vlm",
-    "hybrid",
+    "pix2tex",
 )
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -49,48 +31,66 @@ FILENAME_RE = re.compile(
 MARKER = re.compile(r"^\s*[\(\[]?([A-E])\s*([\)）\]:.]?)\s*(.*)$")
 
 UNICODE_FRACTIONS = {
-    "½": "1/2",
-    "⅓": "1/3",
-    "⅔": "2/3",
-    "¼": "1/4",
-    "¾": "3/4",
-    "⅕": "1/5",
-    "⅖": "2/5",
-    "⅗": "3/5",
-    "⅘": "4/5",
-    "⅙": "1/6",
-    "⅚": "5/6",
-    "⅛": "1/8",
-    "⅜": "3/8",
-    "⅝": "5/8",
-    "⅞": "7/8",
+    "½": r"\frac{1}{2}",
+    "⅓": r"\frac{1}{3}",
+    "⅔": r"\frac{2}{3}",
+    "¼": r"\frac{1}{4}",
+    "¾": r"\frac{3}{4}",
+    "⅕": r"\frac{1}{5}",
+    "⅖": r"\frac{2}{5}",
+    "⅗": r"\frac{3}{5}",
+    "⅘": r"\frac{4}{5}",
+    "⅙": r"\frac{1}{6}",
+    "⅚": r"\frac{5}{6}",
+    "⅛": r"\frac{1}{8}",
+    "⅜": r"\frac{3}{8}",
+    "⅝": r"\frac{5}{8}",
+    "⅞": r"\frac{7}{8}",
+}
+
+SUPERSCRIPT_MAP = str.maketrans({
+    "⁰": "0",
+    "¹": "1",
+    "²": "2",
+    "³": "3",
+    "⁴": "4",
+    "⁵": "5",
+    "⁶": "6",
+    "⁷": "7",
+    "⁸": "8",
+    "⁹": "9",
+    "⁺": "+",
+    "⁻": "-",
+    "ⁿ": "n",
+})
+
+GREEK_TO_LATEX = {
+    "π": r"\pi",
+    "Π": r"\Pi",
+    "α": r"\alpha",
+    "β": r"\beta",
+    "γ": r"\gamma",
+    "δ": r"\delta",
+    "θ": r"\theta",
+    "λ": r"\lambda",
+    "μ": r"\mu",
+    "σ": r"\sigma",
+    "φ": r"\phi",
+    "ω": r"\omega",
+    "Ω": r"\Omega",
 }
 
 
 def parse_args():
     p = argparse.ArgumentParser(
-        description=__doc__,
+        description="Convert M3Kang problem images into JSON/JSONL with LaTeX math mapping.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     p.add_argument(
         "--ocr-type",
         default="rapidocr-enhanced",
         choices=OCR_TYPES,
-        help=(
-            "OCR / vision backend to use (default: rapidocr-enhanced). "
-            "Use 'hybrid' to combine enhanced OCR with VLM fallback for pictures/formulas."
-        ),
-    )
-    p.add_argument(
-        "--vlm-url",
-        default="http://127.0.0.1:8083",
-        help="OpenAI-compatible VLM server URL for --ocr-type vlm or hybrid (default: http://127.0.0.1:8083)",
-    )
-    p.add_argument(
-        "--vlm-timeout",
-        type=int,
-        default=60,
-        help="timeout in seconds per VLM request (default: 60)",
+        help="OCR engine to use (default: rapidocr-enhanced)",
     )
     p.add_argument(
         "--images-dir",
@@ -133,11 +133,6 @@ def parse_args():
         help="ignore .ocr_cache.jsonl and re-run OCR on every image",
     )
     p.add_argument(
-        "--save-option-crops",
-        action="store_true",
-        help="save bottom option-strip crops for problems whose options are visual or empty",
-    )
-    p.add_argument(
         "--limit",
         type=int,
         default=0,
@@ -146,39 +141,114 @@ def parse_args():
     return p.parse_args()
 
 
-def normalize_math_text(text):
-    """Clean OCR noise in fractions, formulas, operators, and dates."""
+def _format_exponent(exp_str):
+    clean = str(exp_str).strip()
+    if len(clean) == 1:
+        return f"^{clean}"
+    return f"^{{{clean}}}"
+
+
+def to_latex_expression(text):
     if not text:
         return ""
     s = str(text).strip()
-    for uf, ascii_frac in UNICODE_FRACTIONS.items():
-        s = s.replace(uf, f" {ascii_frac} ")
+    s = s.strip("$").strip()
+
+    for uf, latex_frac in UNICODE_FRACTIONS.items():
+        s = s.replace(uf, f" {latex_frac} ")
+
+    for greek_char, latex_cmd in GREEK_TO_LATEX.items():
+        s = re.sub(rf"(?<=[0-9a-zA-Z\)]){re.escape(greek_char)}", lambda m, cmd=latex_cmd: cmd, s)
+        s = s.replace(greek_char, f"{latex_cmd} ")
+
+    s = re.sub(
+        r"[⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻ⁿ]+",
+        lambda m: _format_exponent(m.group(0).translate(SUPERSCRIPT_MAP)),
+        s,
+    )
 
     s = (
         s.replace("−", "-")
         .replace("–", "-")
         .replace("—", "-")
-        .replace("×", "*")
-        .replace("÷", "/")
+        .replace("×", r" \times ")
+        .replace("·", r" \cdot ")
+        .replace("÷", r" \div ")
+        .replace("≤", r" \le ")
+        .replace("≥", r" \ge ")
+        .replace("≠", r" \neq ")
+        .replace("≈", r" \approx ")
+        .replace("∞", r"\infty")
+        .replace("°", r"^\circ")
         .replace("⁄", "/")
         .replace("∕", "/")
     )
+
     s = re.sub(r"(?<=\d)\s*[\|lI]\s*(?=\d)", "/", s)
     s = re.sub(r"\s*/\s*", "/", s)
+    s = re.sub(r"(?:(?<=^)|(?<=[\s(\[=+\-*/^{]))-\s+(?=[0-9a-zA-Z\\(])", "-", s)
 
-    def _repair_date(m):
+    protected_dates = []
+
+    def _protect_date(m):
         d, mo, yr = int(m.group(1)), int(m.group(2)), int(m.group(3))
         if 1 <= d <= 31 and 1 <= mo <= 12 and 1900 <= yr <= 2100:
-            return f"{m.group(1)}/{m.group(2)}/{m.group(3)}"
+            token = f"__DATE_{len(protected_dates)}__"
+            protected_dates.append(f"{m.group(1)}/{m.group(2)}/{m.group(3)}")
+            return token
         return m.group(0)
 
-    s = re.sub(r"\b(\d{1,2})\s+(\d{1,2})\s+((?:19|20)\d{2})\b", _repair_date, s)
+    s = re.sub(r"\b(\d{1,2})[/\s](\d{1,2})[/\s]((?:19|20)\d{2})\b", _protect_date, s)
+
+    s = re.sub(
+        r"(?<!\\)\b([a-zA-Z])(\d+)\b",
+        lambda m: f"{m.group(1)}{_format_exponent(m.group(2))}",
+        s,
+    )
+    s = re.sub(
+        r"\)\s*(\d+)\b",
+        lambda m: f"){_format_exponent(m.group(1))}",
+        s,
+    )
+
+    s = re.sub(r"(?<![a-zA-Z\\])[vV]\s*(?=\d|\(|[a-zA-Z]\^)", "√", s)
+
+    if "√" in s:
+        s = re.sub(
+            r"^\s*√\s*(.+)$",
+            lambda m: rf"\sqrt{{{m.group(1).strip()}}}" if r"\sqrt" not in m.group(1) else m.group(0),
+            s,
+        )
+        s = re.sub(
+            r"√\s*\(([^()]+)\)",
+            lambda m: rf"\sqrt{{{m.group(1).strip()}}}",
+            s,
+        )
+        s = re.sub(
+            r"√\s*([a-zA-Z0-9]+(?:\^(?:\{[^{}]+\}|[0-9a-zA-Z]+))?)",
+            lambda m: rf"\sqrt{{{m.group(1)}}}",
+            s,
+        )
+
+    s = re.sub(
+        r"(\([^\(\)]+\)|(?:\\frac\{[^{}]+\}\{[^{}]+\}|\\sqrt\{[^{}]+\}|\\[a-zA-Z]+|[0-9a-zA-Z\^\{\}\+\-\*])+)/(\([^\(\)]+\)|(?:\\sqrt\{[^{}]+\}|\\[a-zA-Z]+|[0-9a-zA-Z\^\{\}])+)",
+        lambda m: rf"\frac{{{m.group(1).strip('()')}}}{{{m.group(2).strip('()')}}}",
+        s,
+    )
+
+    s = re.sub(r"(\\frac\{[^{}]+\}\{[^{}]+\})\s+(?=\()", r"\1", s)
+    s = re.sub(r"\s*([+\-=])\s*", r" \1 ", s)
+    s = re.sub(r"\(\s+", "(", s)
+    s = re.sub(r"\s+\)", ")", s)
     s = re.sub(r"\s+", " ", s).strip()
+
+    for idx, date_val in enumerate(protected_dates):
+        s = s.replace(f"__DATE_{idx}__", date_val)
+
     return s
 
 
 def options_are_valid(options):
-    """Return True if options has all 5 non-empty, non-duplicate values."""
     if not isinstance(options, dict) or len(options) != 5:
         return False
     vals = [str(options.get(l, "")).strip() for l in LETTERS]
@@ -190,8 +260,7 @@ def options_are_valid(options):
     return True
 
 
-def _preprocess_bytes(img_bytes, scale=2.5, crop_bottom_ratio=0.0, binarize=False, pad=24):
-    """Upscale, optionally crop bottom options band, enhance contrast, and pad."""
+def _preprocess_bytes(img_bytes, target_width=1200, crop_top_ratio=0.0, binarize=False, pad=20):
     try:
         from PIL import Image, ImageEnhance, ImageOps
     except ImportError:
@@ -200,22 +269,24 @@ def _preprocess_bytes(img_bytes, scale=2.5, crop_bottom_ratio=0.0, binarize=Fals
     img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
     w, h = img.size
     crop_y = 0
-    if 0.0 < crop_bottom_ratio < 1.0:
-        crop_y = int(h * (1.0 - crop_bottom_ratio))
+    if 0.0 < crop_top_ratio < 0.95:
+        crop_y = int(h * crop_top_ratio)
         img = img.crop((0, crop_y, w, h))
         w, h = img.size
 
-    if scale and scale != 1.0:
-        new_w = max(1, int(round(w * scale)))
-        new_h = max(1, int(round(h * scale)))
-        resample = getattr(getattr(Image, "Resampling", Image), "LANCZOS", Image.BICUBIC)
-        img = img.resize((new_w, new_h), resample=resample)
+    if target_width and w > 0:
+        scale = max(1.0, min(3.0, target_width / float(w)))
+        if scale > 1.05:
+            new_w = int(round(w * scale))
+            new_h = int(round(h * scale))
+            resample = getattr(getattr(Image, "Resampling", Image), "LANCZOS", Image.BICUBIC)
+            img = img.resize((new_w, new_h), resample=resample)
 
     gray = ImageOps.grayscale(img)
     gray = ImageOps.autocontrast(gray, cutoff=1)
-    gray = ImageEnhance.Sharpness(gray).enhance(1.6)
+    gray = ImageEnhance.Sharpness(gray).enhance(1.4)
     if binarize:
-        gray = gray.point(lambda p: 255 if p > 175 else 0)
+        gray = gray.point(lambda p: 255 if p > 180 else 0)
 
     rgb = gray.convert("RGB")
     if pad > 0:
@@ -224,6 +295,31 @@ def _preprocess_bytes(img_bytes, scale=2.5, crop_bottom_ratio=0.0, binarize=Fals
     buf = io.BytesIO()
     rgb.save(buf, format="PNG")
     return buf.getvalue(), crop_y
+
+
+def _merge_split_markers(items):
+    if not items:
+        return []
+    ordered = sorted(items, key=lambda it: (round(it["y"] / max(it["h"], 1.0)), it["x0"]))
+    merged = []
+    i = 0
+    while i < len(ordered):
+        cur = dict(ordered[i])
+        if i + 1 < len(ordered):
+            nxt = ordered[i + 1]
+            same_row = abs(nxt["y"] - cur["y"]) <= max(cur["h"], nxt["h"]) * 0.65
+            close_x = -0.2 * cur["h"] <= (nxt["x0"] - cur["x1"]) <= cur["h"] * 0.9
+            if same_row and close_x and re.match(r"^[\(\[]?[A-E]$", cur["text"]) and re.match(r"^[\)）\]:.]", nxt["text"]):
+                cur["text"] = cur["text"] + nxt["text"]
+                cur["x1"] = max(cur["x1"], nxt["x1"])
+                cur["w"] = max(1.0, cur["x1"] - cur["x0"])
+                cur["cx"] = (cur["x0"] + cur["x1"]) / 2.0
+                merged.append(cur)
+                i += 2
+                continue
+        merged.append(cur)
+        i += 1
+    return merged
 
 
 def _boxes_to_items(boxes):
@@ -246,11 +342,10 @@ def _boxes_to_items(boxes):
             "text": str(text).strip(),
             "score": float(score) if score is not None else 1.0,
         })
-    return items
+    return _merge_split_markers(items)
 
 
 def group_rows(boxes):
-    """Group OCR boxes into horizontal rows (top to bottom), sorted left to right."""
     items = _boxes_to_items(boxes)
     items.sort(key=lambda it: it["y"])
     rows, current = [], []
@@ -265,7 +360,6 @@ def group_rows(boxes):
 
 
 def reading_order(boxes):
-    """Sort OCR boxes into rows (top to bottom), then left to right."""
     return [it for row in group_rows(boxes) for it in row]
 
 
@@ -278,49 +372,75 @@ def is_marker(text, letter, strict):
         return rest
     if strict:
         return None
-    if rest == "" or re.match(r"^[-+−\d/]", rest):
+    if rest == "" or re.match(r"^[-+−\d/√\\a-zA-Zπ(]", rest):
         return rest
     return None
 
 
 def parse_options_with_start(boxes):
-    """Baseline linear parser: return (options_dict, start_item_index, saw_five_markers)."""
     items = reading_order(boxes)
-    starts = [i for i, it in enumerate(items) if is_marker(it["text"], "A", strict=True) is not None]
     saw_five = False
-    for start in reversed(starts):
-        options, current, i = {}, None, start
-        expected = iter(LETTERS)
-        letter = next(expected)
-        while i < len(items):
-            text = items[i]["text"]
-            rest = is_marker(text, letter, strict=(letter == "A")) if letter else None
-            if rest is not None:
-                current = letter
-                options[current] = rest
-                letter = next(expected, None)
-            elif current:
-                options[current] = (options[current] + " " + text).strip()
-            i += 1
-        if len(options) == 5:
-            saw_five = True
-            cleaned = {k: normalize_math_text(v.lstrip(")）] ").strip()) for k, v in options.items()}
-            if options_are_valid(cleaned):
-                return cleaned, start, True
-            return {}, start, True
+    for strict_a in (True, False):
+        starts = [i for i, it in enumerate(items) if is_marker(it["text"], "A", strict=strict_a) is not None]
+        for start in reversed(starts):
+            options, current, i = {}, None, start
+            expected = iter(LETTERS)
+            letter = next(expected)
+            while i < len(items):
+                text = items[i]["text"]
+                rest = is_marker(text, letter, strict=(strict_a and letter == "A")) if letter else None
+                if rest is not None:
+                    current = letter
+                    options[current] = rest
+                    letter = next(expected, None)
+                elif current:
+                    options[current] = (options[current] + " " + text).strip()
+                i += 1
+            if len(options) == 5:
+                saw_five = True
+                cleaned = {k: to_latex_expression(v.lstrip(")）] ").strip()) for k, v in options.items()}
+                if options_are_valid(cleaned):
+                    return cleaned, start, True
+                return {}, start, True
     return {}, len(items), saw_five
 
 
+def _merge_superscripts(items_list):
+    if not items_list:
+        return []
+    ordered = sorted(items_list, key=lambda p: p["x0"])
+    merged = []
+    idx = 0
+    while idx < len(ordered):
+        cur = dict(ordered[idx])
+        if idx + 1 < len(ordered):
+            nxt = ordered[idx + 1]
+            dx = nxt["x0"] - cur["x1"]
+            is_right = -0.35 * cur["h"] <= dx <= 0.75 * cur["h"]
+            is_higher = nxt["y"] < cur["y"] - 0.18 * cur["h"]
+            is_smaller = nxt["h"] <= 0.90 * cur["h"]
+            if is_right and is_higher and is_smaller and re.match(r"^[+-]?[0-9a-zA-Z]+$", nxt["text"]):
+                exp_latex = _format_exponent(nxt["text"])
+                cur["text"] = f"{cur['text']}{exp_latex}"
+                cur["x1"] = max(cur["x1"], nxt["x1"])
+                cur["y0"] = min(cur["y0"], nxt["y0"])
+                merged.append(cur)
+                idx += 2
+                continue
+        merged.append(cur)
+        idx += 1
+    return merged
+
+
 def _reconstruct_slot_tokens(tokens):
-    """Assemble tokens inside a single option slot (A..E), reconstructing vertical fractions."""
     if not tokens:
         return ""
     if len(tokens) == 1:
-        return normalize_math_text(tokens[0]["text"])
+        return to_latex_expression(tokens[0]["text"])
 
     by_y = sorted(tokens, key=lambda t: (t["y"], t["x0"]))
     used = [False] * len(by_y)
-    parts = []
+    items_2d = []
 
     for i, top in enumerate(by_y):
         if used[i]:
@@ -331,28 +451,82 @@ def _reconstruct_slot_tokens(tokens):
                 continue
             bot = by_y[j]
             dy = bot["y"] - top["y"]
-            if dy < 0.35 * min(top["h"], bot["h"]) or dy > 2.8 * max(top["h"], bot["h"]):
+            if dy < 0.25 * min(top["h"], bot["h"]) or dy > 3.2 * max(top["h"], bot["h"]):
                 continue
             x_overlap = min(top["x1"], bot["x1"]) - max(top["x0"], bot["x0"])
-            horiz_close = abs(top["cx"] - bot["cx"]) <= max(top["w"], bot["w"]) * 0.9
-            if (x_overlap > 0 or horiz_close) and re.match(r"^[+-]?\d+$", top["text"]) and re.match(r"^\d+$", bot["text"]):
+            horiz_close = abs(top["cx"] - bot["cx"]) <= max(top["w"], bot["w"]) * 1.05
+            if (x_overlap > 0 or horiz_close) and re.match(r"^[+-]?[0-9a-zA-Zπ]+$", top["text"]) and re.match(r"^[0-9a-zA-Zπ]+$", bot["text"]):
                 best_j = j
                 break
 
         if best_j is not None:
             used[i] = True
             used[best_j] = True
-            parts.append((top["x0"], f"{top['text']}/{by_y[best_j]['text']}"))
+            bot = by_y[best_j]
+            num_tex = to_latex_expression(top["text"])
+            den_tex = to_latex_expression(bot["text"])
+            items_2d.append({
+                "x0": min(top["x0"], bot["x0"]),
+                "x1": max(top["x1"], bot["x1"]),
+                "y0": min(top["y0"], bot["y0"]),
+                "y1": max(top["y1"], bot["y1"]),
+                "y": (top["y"] + bot["y"]) / 2.0,
+                "w": max(top["x1"], bot["x1"]) - min(top["x0"], bot["x0"]),
+                "h": bot["y1"] - top["y0"],
+                "text": rf"\frac{{{num_tex}}}{{{den_tex}}}",
+            })
         else:
             used[i] = True
-            parts.append((top["x0"], top["text"]))
+            items_2d.append(dict(top))
 
-    parts.sort(key=lambda p: p[0])
-    return normalize_math_text(" ".join(p[1] for p in parts))
+    items_2d = _merge_superscripts(items_2d)
+    items_2d.sort(key=lambda p: p["x0"])
+
+    resolved = []
+    idx = 0
+    while idx < len(items_2d):
+        cur = items_2d[idx]
+        if cur["text"].startswith("√") or (
+            idx + 1 < len(items_2d)
+            and cur["text"] in ("v", "V")
+            and re.match(r"^[\(a-zA-Z0-9]", items_2d[idx + 1]["text"])
+        ):
+            rad_parts = []
+            inline_after = cur["text"][1:].strip()
+            if inline_after:
+                rad_parts.append(inline_after)
+            has_long_bar = cur.get("w", 0.0) > cur.get("h", 1.0) * 1.15
+            vinculum_right = cur["x1"]
+            j = idx + 1
+            while j < len(items_2d):
+                cand = items_2d[j]
+                if has_long_bar:
+                    in_radical = cand["cx"] <= vinculum_right + cand["h"] * 0.5
+                else:
+                    in_radical = (
+                        j == idx + 1
+                        and not rad_parts
+                        and (cand["x0"] - vinculum_right) <= cur["h"] * 0.65
+                        and abs(cand["y"] - cur["y"]) <= max(cur["h"], cand["h"]) * 0.85
+                    )
+                if in_radical:
+                    rad_parts.append(cand["text"])
+                    vinculum_right = max(vinculum_right, cand["x1"])
+                    j += 1
+                else:
+                    break
+            rad_inner = to_latex_expression(" ".join(rad_parts))
+            resolved.append(rf"\sqrt{{{rad_inner}}}")
+            idx = j
+            continue
+
+        resolved.append(cur["text"])
+        idx += 1
+
+    return to_latex_expression(" ".join(resolved))
 
 
 def parse_options_spatial(boxes):
-    """2D column-aware parser for options A..E (handles 1-row, 2-row, vertical, and stacked fractions)."""
     items = _boxes_to_items(boxes)
     if not items:
         return {}, False
@@ -363,35 +537,38 @@ def parse_options_spatial(boxes):
         if not m:
             continue
         letter, punct, rest = m.group(1), m.group(2), m.group(3)
-        if punct or rest == "" or re.match(r"^[-+−\d/]", rest):
+        if punct or rest == "" or re.match(r"^[-+−\d/√\\a-zA-Zπ(]", rest):
             candidates_by_letter[letter].append((idx, it, punct, rest))
 
     if not all(candidates_by_letter[l] for l in LETTERS):
         return {}, False
 
     best_markers = None
-    for _, a_it, a_punct, a_rest in reversed(candidates_by_letter["A"]):
-        if not a_punct:
-            continue
-        seq = {"A": (a_it, a_rest)}
-        prev = a_it
-        ok = True
-        for letter in "BCDE":
-            valid_next = [
-                (it, rest)
-                for _, it, punct, rest in candidates_by_letter[letter]
-                if (punct or rest == "" or re.match(r"^[-+−\d/]", rest))
-                and it["y"] >= prev["y"] - prev["h"] * 0.75
-                and not (abs(it["y"] - prev["y"]) <= prev["h"] * 0.75 and it["x0"] <= prev["x0"])
-            ]
-            if not valid_next:
-                ok = False
+    for require_punct in (True, False):
+        for _, a_it, a_punct, a_rest in reversed(candidates_by_letter["A"]):
+            if require_punct and not a_punct:
+                continue
+            seq = {"A": (a_it, a_rest)}
+            prev = a_it
+            ok = True
+            for letter in "BCDE":
+                valid_next = [
+                    (it, rest)
+                    for _, it, punct, rest in candidates_by_letter[letter]
+                    if (not require_punct or punct or rest == "" or re.match(r"^[-+−\d/√\\]", rest))
+                    and it["y"] >= prev["y"] - prev["h"] * 0.85
+                    and not (abs(it["y"] - prev["y"]) <= prev["h"] * 0.85 and it["x0"] <= prev["x0"])
+                ]
+                if not valid_next:
+                    ok = False
+                    break
+                valid_next.sort(key=lambda pair: (round(pair[0]["y"] / max(prev["h"], 1.0)), pair[0]["x0"]))
+                seq[letter] = valid_next[0]
+                prev = valid_next[0][0]
+            if ok:
+                best_markers = seq
                 break
-            valid_next.sort(key=lambda pair: (round(pair[0]["y"] / max(prev["h"], 1.0)), pair[0]["x0"]))
-            seq[letter] = valid_next[0]
-            prev = valid_next[0][0]
-        if ok:
-            best_markers = seq
+        if best_markers:
             break
 
     if not best_markers:
@@ -418,7 +595,7 @@ def parse_options_spatial(boxes):
         row_y_center = sum(e[1]["y"] for e in row) / len(row)
         row_h = max(e[1]["h"] for e in row)
         y_top = (
-            min_marker_y - row_h * 0.9
+            min_marker_y - row_h * 2.0
             if r_idx == 0
             else (sum(e[1]["y"] for e in visual_rows[r_idx - 1]) / len(visual_rows[r_idx - 1]) + row_y_center) / 2.0
         )
@@ -442,7 +619,7 @@ def parse_options_spatial(boxes):
     for it in items:
         if id(it) in marker_ids:
             continue
-        if it["y"] < min_marker_y - it["h"] * 0.8:
+        if it["y"] < min_marker_y - it["h"] * 1.9:
             continue
         for letter in LETTERS:
             sl = slots[letter]
@@ -455,13 +632,12 @@ def parse_options_spatial(boxes):
         sl = slots[letter]
         extra = _reconstruct_slot_tokens(sl["tokens"])
         combined = " ".join(p for p in (sl["inline"], extra) if p).strip()
-        options[letter] = normalize_math_text(combined)
+        options[letter] = to_latex_expression(combined)
 
     return options, True
 
 
 def extract_text_and_options(boxes):
-    """Extract both statement text (above options) and A..E options."""
     rows = group_rows(boxes)
     items = [it for row in rows for it in row]
     linear_opts, start_idx, saw_five_linear = parse_options_with_start(boxes)
@@ -487,17 +663,27 @@ def extract_text_and_options(boxes):
     return text, options, saw_five
 
 
-class ImageOptionReader:
-    """Unified image reader supporting multiple OCR engines and VLM vision fallback."""
+def _find_options_crop_ratio(boxes, img_height):
+    if not boxes or img_height <= 0:
+        return 0.45
+    items = _boxes_to_items(boxes)
+    a_candidates = [it for it in items if MARKER.match(it["text"]) and MARKER.match(it["text"]).group(1) == "A"]
+    if not a_candidates:
+        return 0.45
+    last_a = a_candidates[-1]
+    top_y = max(0.0, last_a["y0"] - last_a["h"] * 2.5)
+    return min(0.85, max(0.0, top_y / float(img_height)))
 
-    def __init__(self, ocr_type="rapidocr-enhanced", vlm_url="http://127.0.0.1:8083", vlm_timeout=60):
+
+class ImageOptionReader:
+
+    def __init__(self, ocr_type="rapidocr-enhanced"):
         self.ocr_type = ocr_type
-        self.vlm_url = vlm_url.rstrip("/")
-        self.vlm_timeout = vlm_timeout
         self._rapid = None
         self._paddle = None
         self._easy = None
         self._tesseract = None
+        self._latex_ocr = None
 
     def _get_rapid(self):
         if self._rapid is None:
@@ -532,8 +718,16 @@ class ImageOptionReader:
             self._tesseract = pytesseract
         return self._tesseract
 
+    def _get_latex_ocr(self):
+        if self._latex_ocr is None:
+            try:
+                from pix2tex.cli import LatexOCR
+            except ImportError as exc:
+                raise SystemExit("pix2tex not installed. Install with: pip install pix2tex") from exc
+            self._latex_ocr = LatexOCR()
+        return self._latex_ocr
+
     def _detect_boxes(self, img_bytes, backend):
-        """Return standard [(box_4pts, text, score), ...] list for the requested OCR engine."""
         if backend in ("rapidocr", "rapidocr-enhanced"):
             ocr = self._get_rapid()
             boxes, _ = ocr(img_bytes)
@@ -575,79 +769,78 @@ class ImageOptionReader:
 
         raise ValueError(f"Unsupported OCR backend: {backend}")
 
-    def _query_vlm(self, img_bytes):
-        """Query local multimodal server (e.g. Qwen3.5-0.8B + mmproj) to extract options A..E."""
-        b64 = base64.b64encode(img_bytes).decode("ascii")
-        prompt = (
-            "Look at this math competition problem image. Extract the five answer options A, B, C, D, and E "
-            "at the bottom. If options are numbers, fractions (like 1/2), formulas, or dates (like 11/10/2020), "
-            "write their exact text. If options are pictures, shapes, clocks, or graphs, briefly describe each "
-            "option A to E in 2-5 words so they can be distinguished. "
-            'Reply ONLY with valid JSON: {"A": "...", "B": "...", "C": "...", "D": "...", "E": "..."}'
-        )
-        payload = json.dumps({
-            "messages": [
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": prompt},
-                        {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64}"}},
-                    ],
-                }
-            ],
-            "temperature": 0,
-            "max_tokens": 220,
-        }).encode("utf-8")
+    def _read_with_pix2tex(self, img_bytes):
+        from PIL import Image
+        full_boxes = self._detect_boxes(img_bytes, "rapidocr")
+        text, _, saw_five = extract_text_and_options(full_boxes)
+        items = _boxes_to_items(full_boxes)
 
-        req = urllib.request.Request(
-            f"{self.vlm_url}/v1/chat/completions",
-            data=payload,
-            headers={"Content-Type": "application/json"},
-        )
-        try:
-            with urllib.request.urlopen(req, timeout=self.vlm_timeout) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
-            content = data["choices"][0]["message"]["content"].strip()
-            m = re.search(r"\{[\s\S]*\}", content)
-            if not m:
-                return {}
-            parsed = json.loads(m.group(0))
-            cleaned = {
-                l: normalize_math_text(str(parsed.get(l, "")).strip())
-                for l in LETTERS
-            }
-            return cleaned if options_are_valid(cleaned) else {}
-        except (urllib.error.URLError, TimeoutError, ValueError, KeyError, json.JSONDecodeError) as exc:
-            print(f"  [VLM warning] {exc}", file=sys.stderr, flush=True)
-            return {}
+        marker_boxes = {}
+        for it in reversed(items):
+            m = MARKER.match(it["text"])
+            if m and m.group(2) and m.group(1) in LETTERS and m.group(1) not in marker_boxes:
+                marker_boxes[m.group(1)] = it
+
+        if len(marker_boxes) != 5:
+            return {"text": text, "options": {}, "options_type": "non_text"}
+
+        img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
+        w, h = img.size
+        latex_ocr = self._get_latex_ocr()
+        ordered = sorted(marker_boxes.items(), key=lambda kv: (round(kv[1]["y"] / max(kv[1]["h"], 1.0)), kv[1]["x0"]))
+        options = {}
+
+        for idx, (letter, m_it) in enumerate(ordered):
+            x0 = max(0, int(m_it["x1"] + 2))
+            y0 = max(0, int(m_it["y0"] - m_it["h"] * 0.8))
+            y1 = min(h, int(m_it["y1"] + m_it["h"] * 0.8))
+            x1 = w
+            if idx + 1 < len(ordered):
+                nxt = ordered[idx + 1][1]
+                if abs(nxt["y"] - m_it["y"]) <= max(nxt["h"], m_it["h"]):
+                    x1 = max(x0 + 4, int(nxt["x0"] - 4))
+            if x1 <= x0 + 4 or y1 <= y0 + 4:
+                return {"text": text, "options": {}, "options_type": "non_text"}
+            crop = img.crop((x0, y0, x1, y1))
+            raw_latex = str(latex_ocr(crop) or "").strip()
+            options[letter] = to_latex_expression(raw_latex)
+
+        if options_are_valid(options):
+            return {"text": text, "options": options, "options_type": "text"}
+        return {"text": text, "options": {}, "options_type": "non_text" if saw_five else "empty"}
 
     def read_image(self, img_bytes):
-        """Return dict: {'text': str, 'options': dict, 'options_type': 'text'|'visual'|'empty', 'crop_bytes': bytes|None}."""
         if self.ocr_type == "rapidocr":
             boxes = self._detect_boxes(img_bytes, "rapidocr")
             text, options, saw_five = extract_text_and_options(boxes)
-            opt_type = "text" if options else ("visual" if saw_five else "empty")
-            return {"text": text, "options": options, "options_type": opt_type, "crop_bytes": None}
+            opt_type = "text" if options else ("non_text" if saw_five else "empty")
+            return {"text": text, "options": options, "options_type": opt_type}
 
-        if self.ocr_type == "vlm":
-            text = ""
-            try:
-                boxes = self._detect_boxes(img_bytes, "rapidocr")
-                text, _, _ = extract_text_and_options(boxes)
-            except Exception:
-                pass
-            vlm_opts = self._query_vlm(img_bytes)
-            opt_type = "vlm" if vlm_opts else "empty"
-            return {"text": text, "options": vlm_opts, "options_type": opt_type, "crop_bytes": None}
+        if self.ocr_type == "pix2tex":
+            return self._read_with_pix2tex(img_bytes)
 
-        backend = "rapidocr-enhanced" if self.ocr_type == "hybrid" else self.ocr_type
+        backend = self.ocr_type
 
-        full_scaled, _ = _preprocess_bytes(img_bytes, scale=2.0, crop_bottom_ratio=0.0, binarize=False, pad=20)
-        full_boxes = self._detect_boxes(full_scaled, backend)
-        text, options, saw_five = extract_text_and_options(full_boxes)
+        from PIL import Image
+        orig_w, orig_h = Image.open(io.BytesIO(img_bytes)).size
 
-        crop_bytes, _ = _preprocess_bytes(img_bytes, scale=3.0, crop_bottom_ratio=0.45, binarize=False, pad=28)
+        native_boxes = self._detect_boxes(img_bytes, backend)
+        text, options, saw_five = extract_text_and_options(native_boxes)
+
         if not options_are_valid(options):
+            scaled_full, _ = _preprocess_bytes(img_bytes, target_width=1400, crop_top_ratio=0.0, binarize=False, pad=20)
+            scaled_boxes = self._detect_boxes(scaled_full, backend)
+            s_text, s_opts, s_saw = extract_text_and_options(scaled_boxes)
+            if not text and s_text:
+                text = s_text
+            saw_five = saw_five or s_saw
+            if options_are_valid(s_opts):
+                options = s_opts
+
+        crop_top = _find_options_crop_ratio(native_boxes, orig_h)
+
+        if not options_are_valid(options):
+            crop_bytes, _ = _preprocess_bytes(img_bytes, target_width=1600, crop_top_ratio=crop_top, binarize=False, pad=28)
             crop_boxes = self._detect_boxes(crop_bytes, backend)
             crop_opts, saw_five_crop = parse_options_spatial(crop_boxes)
             if not options_are_valid(crop_opts):
@@ -658,7 +851,7 @@ class ImageOptionReader:
                 options = crop_opts
 
         if not options_are_valid(options):
-            bin_crop, _ = _preprocess_bytes(img_bytes, scale=3.2, crop_bottom_ratio=0.45, binarize=True, pad=28)
+            bin_crop, _ = _preprocess_bytes(img_bytes, target_width=1800, crop_top_ratio=crop_top, binarize=True, pad=28)
             bin_boxes = self._detect_boxes(bin_crop, backend)
             bin_opts, _ = parse_options_spatial(bin_boxes)
             if not options_are_valid(bin_opts):
@@ -666,20 +859,14 @@ class ImageOptionReader:
             if options_are_valid(bin_opts):
                 options = bin_opts
 
-        if not options_are_valid(options) and self.ocr_type == "hybrid":
-            vlm_opts = self._query_vlm(img_bytes)
-            if options_are_valid(vlm_opts):
-                return {"text": text, "options": vlm_opts, "options_type": "vlm", "crop_bytes": crop_bytes}
-
         if options_are_valid(options):
-            return {"text": text, "options": options, "options_type": "text", "crop_bytes": None}
+            return {"text": text, "options": options, "options_type": "text"}
 
-        opt_type = "visual" if saw_five else "empty"
-        return {"text": text, "options": {}, "options_type": opt_type, "crop_bytes": crop_bytes}
+        opt_type = "non_text" if saw_five else "empty"
+        return {"text": text, "options": {}, "options_type": opt_type}
 
 
 def parse_filename(filename, default_language="eng"):
-    """Extract id, language, level, and year from <id>_<language>.png."""
     stem = os.path.splitext(os.path.basename(filename))[0]
     m = FILENAME_RE.match(stem)
     if m:
@@ -716,11 +903,12 @@ def load_cache(cache_path):
             for line in f:
                 if line.strip():
                     row = json.loads(line)
-                    cache[row["key"]] = {
-                        "options": row.get("options", {}),
-                        "text": row.get("text", ""),
-                        "options_type": row.get("options_type", "text" if row.get("options") else "empty"),
-                    }
+                    if row.get("options"):
+                        cache[row["key"]] = {
+                            "options": row.get("options", {}),
+                            "text": row.get("text", ""),
+                            "options_type": row.get("options_type", "text"),
+                        }
     return cache
 
 
@@ -736,14 +924,10 @@ def write_records(records, out_path):
                 f.write(json.dumps(rec, ensure_ascii=False) + "\n")
 
 
-def run_ocr_on_image(reader, img_path, crops_dir=None, crop_name=None):
+def run_ocr_on_image(reader, img_path):
     with open(img_path, "rb") as f:
         img_bytes = f.read()
     res = reader.read_image(img_bytes)
-    if crops_dir and crop_name and not res["options"] and res.get("crop_bytes"):
-        os.makedirs(crops_dir, exist_ok=True)
-        with open(os.path.join(crops_dir, crop_name), "wb") as cf:
-            cf.write(res["crop_bytes"])
     return res["text"], res["options"], res["options_type"]
 
 
@@ -753,16 +937,11 @@ def main():
     out_dir = os.path.dirname(os.path.abspath(args.out))
     os.makedirs(out_dir, exist_ok=True)
 
-    crops_dir = os.path.join(out_dir, "option_crops") if args.save_option_crops else None
     cache_path = os.path.join(out_dir, ".ocr_cache.jsonl")
     cache = {} if args.no_cache else load_cache(cache_path)
     cache_file = open(cache_path, "a", encoding="utf-8")
 
-    reader = ImageOptionReader(
-        ocr_type=args.ocr_type,
-        vlm_url=args.vlm_url,
-        vlm_timeout=args.vlm_timeout,
-    )
+    reader = ImageOptionReader(ocr_type=args.ocr_type)
     records = []
     t0 = time.time()
 
@@ -792,17 +971,16 @@ def main():
                 ocr_text = cache[cache_key]["text"]
                 options_type = cache[cache_key]["options_type"]
             elif os.path.exists(img_path):
-                ocr_text, options, options_type = run_ocr_on_image(
-                    reader, img_path, crops_dir=crops_dir, crop_name=img_filename
-                )
-                cache[cache_key] = {"options": options, "text": ocr_text, "options_type": options_type}
-                cache_file.write(
-                    json.dumps(
-                        {"key": cache_key, "options": options, "text": ocr_text, "options_type": options_type},
-                        ensure_ascii=False,
+                ocr_text, options, options_type = run_ocr_on_image(reader, img_path)
+                if options:
+                    cache[cache_key] = {"options": options, "text": ocr_text, "options_type": options_type}
+                    cache_file.write(
+                        json.dumps(
+                            {"key": cache_key, "options": options, "text": ocr_text, "options_type": options_type},
+                            ensure_ascii=False,
+                        )
+                        + "\n"
                     )
-                    + "\n"
-                )
             else:
                 missing_images += 1
                 options = row.get("options", {})
@@ -852,17 +1030,16 @@ def main():
             text = cache[cache_key]["text"]
             options_type = cache[cache_key]["options_type"]
         else:
-            text, options, options_type = run_ocr_on_image(
-                reader, img_path, crops_dir=crops_dir, crop_name=os.path.basename(img_path)
-            )
-            cache[cache_key] = {"options": options, "text": text, "options_type": options_type}
-            cache_file.write(
-                json.dumps(
-                    {"key": cache_key, "options": options, "text": text, "options_type": options_type},
-                    ensure_ascii=False,
+            text, options, options_type = run_ocr_on_image(reader, img_path)
+            if options:
+                cache[cache_key] = {"options": options, "text": text, "options_type": options_type}
+                cache_file.write(
+                    json.dumps(
+                        {"key": cache_key, "options": options, "text": text, "options_type": options_type},
+                        ensure_ascii=False,
+                    )
+                    + "\n"
                 )
-                + "\n"
-            )
 
         rec = {
             "id": meta["id"],

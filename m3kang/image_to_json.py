@@ -1,4 +1,4 @@
-"""Convert M3Kang problem images (..\data\images) into JSON/JSONL using RapidOCR.
+"""Convert M3Kang problem images into JSON/JSONL using RapidOCR.
 
 Reuses the reading_order, is_marker, and parse_options OCR pipeline from
 parquet_to_images.py / parquet_to_jsons.py to extract options A..E (and question
@@ -6,10 +6,10 @@ text when building standalone JSONL records from images).
 
 Usage:
     python image_to_json.py
-    python image_to_json.py --languages eng,cat --out ..\data\val.jsonl
-    python image_to_json.py --out ..\data\problems.json
-    python image_to_json.py --update-jsonl ..\data\val.jsonl
-    python image_to_json.py --image ..\data\images\lvl-0_2015_13_eng.png
+    python image_to_json.py --languages eng,cat --out ../data/val.jsonl
+    python image_to_json.py --out ../data/problems.json
+    python image_to_json.py --update-jsonl ../data/val.jsonl
+    python image_to_json.py --image ../data/images/lvl-0_2015_13_eng.png
 """
 import argparse
 import json

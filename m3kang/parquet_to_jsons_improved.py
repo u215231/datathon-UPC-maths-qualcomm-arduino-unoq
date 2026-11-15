@@ -1,22 +1,3 @@
-#!/usr/bin/env python3
-"""Prepare M3Kang for the Arduino UNO Q, on your laptop.
-
-M3Kang stores each problem as text plus an image. The text has the question
-but not the five answer options: those only appear in the image. This script:
-
-1. downloads the parquet shards you ask for from Hugging Face,
-2. keeps the languages you ask for,
-3. reads the options A to E from each image using the selected --ocr-type reader
-   (with 3x upscaling, 2D column fraction/date parsing, and optional VLM fallback),
-4. splits the problems into train and validation by problem ID, so a
-   problem and its translations never land on both sides,
-5. writes small JSONL files (no images) that you copy to the board.
-
-Usage:
-    python3 laptop/prepare_m3kang.py --ocr-type rapidocr-enhanced
-    python3 laptop/prepare_m3kang.py --languages eng,cat,esp --ocr-type hybrid
-    python3 laptop/prepare_m3kang.py --val-years 2024 --save-images
-"""
 import argparse
 import hashlib
 import json
@@ -29,14 +10,21 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 if SCRIPT_DIR not in sys.path:
     sys.path.insert(0, SCRIPT_DIR)
 
-from image_to_json_improved import ImageOptionReader, OCR_TYPES  # noqa: E402
+try:
+    from image_to_json_improved import ImageOptionReader, OCR_TYPES
+except ImportError:
+    from image_to_json import ImageOptionReader, OCR_TYPES
 
 DATASET = "qualcomm/M3Kang"
 SHARD = "data/{split}-{index:05d}-of-{total:05d}.parquet"
 SHARDS = {"high_quality": 4, "standard": 10}
 
+
 def parse_args():
-    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p = argparse.ArgumentParser(
+        description="Prepare M3Kang JSONL splits with LaTeX option extraction.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     p.add_argument("--split", default="high_quality", choices=sorted(SHARDS))
     p.add_argument(
         "--shards",
@@ -53,22 +41,11 @@ def parse_args():
         "--ocr-type",
         default="rapidocr-enhanced",
         choices=OCR_TYPES,
-        help="OCR / vision backend to use for reading options (default: rapidocr-enhanced)",
+        help="OCR engine to use for reading options (default: rapidocr-enhanced)",
     )
-    p.add_argument(
-        "--vlm-url",
-        default="http://127.0.0.1:8083",
-        help="OpenAI-compatible VLM server URL for --ocr-type vlm or hybrid (default: http://127.0.0.1:8083)",
-    )
-    p.add_argument("--vlm-timeout", type=int, default=60, help="timeout in seconds per VLM request")
     p.add_argument("--no-ocr", action="store_true", help="skip OCR; options will be empty")
     p.add_argument("--no-cache", action="store_true", help="ignore .ocr_cache.jsonl and re-run OCR")
     p.add_argument("--save-images", action="store_true", help="also save problem images as PNG")
-    p.add_argument(
-        "--save-option-crops",
-        action="store_true",
-        help="save cropped option bands for problems whose options are visual or empty",
-    )
     p.add_argument("--limit", type=int, default=0, help="only process the first N rows (for testing)")
     return p.parse_args()
 
@@ -97,16 +74,10 @@ def main():
     os.makedirs(args.out, exist_ok=True)
     if args.save_images:
         os.makedirs(os.path.join(args.out, "images"), exist_ok=True)
-    if args.save_option_crops:
-        os.makedirs(os.path.join(args.out, "option_crops"), exist_ok=True)
 
     reader = None
     if not args.no_ocr:
-        reader = ImageOptionReader(
-            ocr_type=args.ocr_type,
-            vlm_url=args.vlm_url,
-            vlm_timeout=args.vlm_timeout,
-        )
+        reader = ImageOptionReader(ocr_type=args.ocr_type)
 
     cache_path = os.path.join(args.out, ".ocr_cache.jsonl")
     cache = {}
@@ -115,10 +86,11 @@ def main():
             for line in f:
                 if line.strip():
                     row = json.loads(line)
-                    cache[row["key"]] = {
-                        "options": row.get("options", {}),
-                        "options_type": row.get("options_type", "text" if row.get("options") else "empty"),
-                    }
+                    if row.get("options"):
+                        cache[row["key"]] = {
+                            "options": row.get("options", {}),
+                            "options_type": row.get("options_type", "text"),
+                        }
     cache_file = open(cache_path, "a", encoding="utf-8")
 
     rows = []
@@ -152,18 +124,15 @@ def main():
                 res = reader.read_image(image)
                 options = res["options"]
                 options_type = res["options_type"]
-                if args.save_option_crops and not options and res.get("crop_bytes"):
-                    crop_out = os.path.join(args.out, "option_crops", key.replace("|", "_") + ".png")
-                    with open(crop_out, "wb") as cf:
-                        cf.write(res["crop_bytes"])
-                cache[cache_key] = {"options": options, "options_type": options_type}
-                cache_file.write(
-                    json.dumps(
-                        {"key": cache_key, "options": options, "options_type": options_type},
-                        ensure_ascii=False,
+                if options:
+                    cache[cache_key] = {"options": options, "options_type": options_type}
+                    cache_file.write(
+                        json.dumps(
+                            {"key": cache_key, "options": options, "options_type": options_type},
+                            ensure_ascii=False,
+                        )
+                        + "\n"
                     )
-                    + "\n"
-                )
 
             year = r["id"].split("_")[1]
             if val_years:
